@@ -18,6 +18,7 @@ from app.models.user import (
 # Permiso -> roles que lo tienen. El Dueño figura en todos (hereda Administrador y Coordinador).
 PERMISSIONS: dict[str, frozenset[str]] = {
     "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_05
+    "user:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_06
 }
 
 # Roles que cada rol puede asignar al registrar/editar colaboradores (HU_05, HU_08).

@@ -1,8 +1,10 @@
-"""HU_11. Lógica de negocio de clientes (registro)."""
+"""HU_11-12. Lógica de negocio de clientes."""
 from sqlalchemy.exc import IntegrityError
 
 from app.core import audit
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.pagination import PER_PAGE
+from app.core.permissions import ROL_CONTADOR
 from app.extensions import db
 from app.models.client import (
     CONTACTO_PAGOS,
@@ -14,15 +16,11 @@ from app.models.client import (
 from app.repositories import client_repository
 
 
+# ---------------------------------------------------------------------------
+# HU_11
+# ---------------------------------------------------------------------------
 def create_client(actor, data: dict) -> Cliente:
-    """HU_11. Registra un cliente nuevo con sus regímenes y contactos.
-
-    Reglas:
-      - RFC único entre clientes no eliminados; el mensaje indica a qué cliente pertenece.
-      - Contador asignado debe ser Contador Activo.
-      - Todos los regímenes deben existir y estar activos en el catálogo SAT.
-    """
-    # 1) RFC único
+    """HU_11. Registra un cliente nuevo con sus regímenes y contactos."""
     existente = client_repository.find_by_rfc(data["rfc"])
     if existente is not None:
         raise ConflictError(
@@ -30,7 +28,6 @@ def create_client(actor, data: dict) -> Cliente:
             fields={"rfc": ["El RFC ya está registrado"]},
         )
 
-    # 2) Contador Activo con rol CONTADOR
     contador = client_repository.get_contador_activo(data["contador_asignado_id"])
     if contador is None:
         raise ValidationAppError(
@@ -38,7 +35,6 @@ def create_client(actor, data: dict) -> Cliente:
             fields={"contador_asignado_id": ["Debe ser un Contador Activo"]},
         )
 
-    # 3) Regímenes SAT existentes y activos
     solicitados = set(data["regimenes"])
     validos = client_repository.regimenes_existen(list(solicitados))
     invalidos = solicitados - validos
@@ -48,7 +44,6 @@ def create_client(actor, data: dict) -> Cliente:
             fields={"regimenes": [f"Claves no válidas: {sorted(invalidos)}"]},
         )
 
-    # 4) Alta del cliente
     cliente = Cliente(
         nombre_completo=data["nombre_completo"],
         rfc=data["rfc"],
@@ -75,11 +70,9 @@ def create_client(actor, data: dict) -> Cliente:
     try:
         client_repository.add(cliente)
 
-        # Regímenes
         for clave in solicitados:
             db.session.add(ClienteRegimen(cliente_id=cliente.id, regimen_clave=clave))
 
-        # Contacto principal (obligatorio)
         principal = data["contacto_principal"]
         db.session.add(
             ContactoCliente(
@@ -94,7 +87,6 @@ def create_client(actor, data: dict) -> Cliente:
             )
         )
 
-        # Contacto de pagos (opcional; el schema ya garantizó "todo o nada")
         pagos = data.get("contacto_pagos")
         if pagos:
             db.session.add(
@@ -110,7 +102,6 @@ def create_client(actor, data: dict) -> Cliente:
                 )
             )
 
-        # Auditoría (RG-13) + Notificación in-app (HU_69, sin correo)
         audit.log(
             actor.id,
             entidad="cliente",
@@ -128,8 +119,35 @@ def create_client(actor, data: dict) -> Cliente:
     return cliente
 
 
+# ---------------------------------------------------------------------------
+# HU_12
+# ---------------------------------------------------------------------------
+def list_clients(actor, filtros: dict):
+    """HU_12. Listado paginado de clientes con alcance por rol (RG-12).
+
+    El Contador solo ve los asignados a él o con permiso de atención vigente.
+    El filtro `contador` (query param) se ignora para el Contador.
+    """
+    scope_contador_id = actor.id if actor.rol == ROL_CONTADOR else None
+
+    # El Contador no puede filtrar por otro contador (no lo ve).
+    contador_id = None if scope_contador_id is not None else filtros.get("contador")
+
+    return client_repository.search(
+        q=filtros.get("q"),
+        estatus=filtros["estatus"],
+        contador_id=contador_id,
+        tipo_persona=filtros.get("tipo_persona"),
+        scope_contador_id=scope_contador_id,
+        page=filtros["page"],
+        per_page=PER_PAGE,
+    )
+
+
+# ---------------------------------------------------------------------------
+# HU_69: notificación in-app al alta de cliente
+# ---------------------------------------------------------------------------
 def _notificar_alta_cliente(cliente: Cliente, actor) -> None:
-    """HU_69: in-app a Dueños, Admins y Coordinadores Activos, excepto al creador."""
     from sqlalchemy import select
 
     from app.models.notification import Notificacion

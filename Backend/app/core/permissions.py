@@ -17,9 +17,10 @@ from app.models.user import (
 
 # Permiso -> roles que lo tienen. El Dueño figura en todos (hereda Administrador y Coordinador).
 PERMISSIONS: dict[str, frozenset[str]] = {
-    "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),          # HU_05
-    "user:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),            # HU_06
-    "client:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_12
+    "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                  # HU_05
+    "user:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_06
+    "client:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                # HU_11
+    "client:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_12
     "catalog:read": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_25
 }
 
@@ -51,8 +52,6 @@ def load_current_user() -> Colaborador:
 
 
 def login_required(fn):
-    """Exige sesión válida (cookie o cabecera) y deja al usuario en g.current_user."""
-
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
@@ -63,8 +62,6 @@ def login_required(fn):
 
 
 def require_permission(permission: str):
-    """Valida el JWT, carga al usuario en g.current_user y exige el permiso (RG-02)."""
-
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):

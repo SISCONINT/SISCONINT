@@ -1,6 +1,12 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from app import db
-from app.models.client import Client
+
+from app.core.errors import ValidationAppError
+from app.core.permissions import require_permission
+from app.core.responses import ok
+from app.models.client import Cliente
+from app.schemas.cliente_schema import ClienteCreateSchema
+from app.services import client_service
 
 bp = Blueprint('clients', __name__, url_prefix='/clients')
 
@@ -31,7 +37,7 @@ def register_client():
     tiene_trabajadores = data.get('tiene_trabajadores', False)
     tipo_nomina = data.get('tipo_nomina')
 
-    existing_client = Client.query.filter_by(rfc=rfc).first()
+    existing_client = Cliente.query.filter_by(rfc=rfc).first()
     if existing_client:
         return jsonify({
             "error": {
@@ -41,7 +47,7 @@ def register_client():
         }), 400
 
     try:
-        new_client = Client(
+        new_client = Cliente(
             nombre_completo=nombre_completo,
             rfc=rfc,
             tipo_persona=tipo_persona,
@@ -75,3 +81,15 @@ def register_client():
         db.session.rollback()
         print("ERROR REAL DE PYTHON:", repr(e))
         return jsonify({"error": {"message": str(e)}}), 500
+    
+@bp.post("")
+@require_permission("client:create")
+def create_client():
+    """HU_11: Registrar cliente (Dueño o Administrador)."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ClienteCreateSchema().load(payload)  # errores -> 422
+    cliente = client_service.create_client(g.current_user, data)
+    return ok(cliente.to_dict(), status=201)

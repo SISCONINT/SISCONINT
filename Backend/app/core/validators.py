@@ -23,6 +23,11 @@ def validate_email(value: str) -> None:
 def validate_phone(value: str) -> None:
     if not _PHONE_RE.match(value):
         raise ValidationError("El teléfono debe tener 10 dígitos")
+    
+    
+def validate_postal_code(value: str) -> None:
+    if not re.match(r"^[0-9]{5}$", value or ""):
+        raise ValidationError("El código postal debe tener 5 dígitos")
 
 
 def validate_cedula(value: str) -> None:

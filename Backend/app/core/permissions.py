@@ -18,7 +18,12 @@ from app.models.user import (
 # Permiso -> roles que lo tienen. El Dueño figura en todos (hereda Administrador y Coordinador).
 PERMISSIONS: dict[str, frozenset[str]] = {
     "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_05
+    "user:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_08 ficha
+    "user:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_08
 }
+
+# El Administrador no edita ni asigna Dueño/Administrador (HU_08).
+ROLES_PROTECTED_FROM_ADMIN = frozenset({ROL_DUENO, ROL_ADMINISTRADOR})
 
 # Roles que cada rol puede asignar al registrar/editar colaboradores (HU_05, HU_08).
 ASSIGNABLE_ROLES: dict[str, frozenset[str]] = {
@@ -33,6 +38,10 @@ def has_permission(rol: str, permission: str) -> bool:
 
 def can_assign_role(actor_rol: str, target_rol: str) -> bool:
     return target_rol in ASSIGNABLE_ROLES.get(actor_rol, frozenset())
+
+
+def admin_may_edit(target_rol: str) -> bool:
+    return target_rol not in ROLES_PROTECTED_FROM_ADMIN
 
 
 def load_current_user() -> Colaborador:

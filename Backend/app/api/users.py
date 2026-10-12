@@ -2,12 +2,26 @@
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
+from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
+from app.schemas.user_list_schema import ColaboradorListItemSchema, ColaboradorListQuerySchema
 from app.schemas.user_schema import ColaboradorCreateSchema, ColaboradorSchema
 from app.services import email_service, user_service
 
 bp = Blueprint("users", __name__, url_prefix="/users")
+
+
+@bp.get("")
+@require_permission("user:list")
+def list_users():
+    """HU_06: Consultar la lista de colaboradores (Dueño o Administrador).
+
+    Parámetros opcionales: q (nombre o correo), rol, estatus (por defecto ACTIVO), page.
+    """
+    filters = ColaboradorListQuerySchema().load(request.args.to_dict())  # errores -> 422
+    page = user_service.list_users(filters)
+    return ok(ColaboradorListItemSchema(many=True).dump(page.items), meta=pagination_meta(page))
 
 
 @bp.post("")

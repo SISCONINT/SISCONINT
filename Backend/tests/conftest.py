@@ -81,12 +81,20 @@ def client(app):
     return app.test_client()
 
 
-def _make_user(correo: str, rol: str, estatus: str = ESTATUS_ACTIVO) -> Colaborador:
+def _make_user(
+    correo: str,
+    rol: str,
+    estatus: str = ESTATUS_ACTIVO,
+    password: str | None = None,
+    nombre: str | None = None,
+    grado: str = "ADMIN",
+) -> Colaborador:
     user = Colaborador(
-        nombre_completo=f"Usuario {rol.title()}",
+        nombre_completo=nombre or f"Usuario {rol.title()}",
         correo_institucional=correo,
+        password_hash=hash_password(password) if password else None,
         rol=rol,
-        grado_escalafon="ADMIN",
+        grado_escalafon=grado,
         estatus=estatus,
         telefono_despacho="4420000000",
         telefono_personal="4421111111",

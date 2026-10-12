@@ -1,10 +1,13 @@
 """Lógica de negocio de colaboradores. No conoce HTTP."""
 from datetime import timedelta
 
+from flask_sqlalchemy.pagination import Pagination   # junto a los imports de flask
+
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from app.core import audit
+from app.core.pagination import PER_PAGE              # junto a los de app.core
 from app.core.datetime_utils import utcnow
 from app.core.errors import ConflictError, ForbiddenError
 from app.core.permissions import can_assign_role
@@ -51,6 +54,15 @@ def register_user(actor: Colaborador, data: dict) -> tuple[Colaborador, str]:
 
     return user, raw_token
 
+def list_users(filters: dict) -> Pagination:
+    """HU_06. Página de colaboradores según los filtros ya validados (RG-07: 20 por página)."""
+    return user_repository.search(
+        q=filters.get("q"),
+        rol=filters.get("rol"),
+        estatus=filters["estatus"],
+        page=filters["page"],
+        per_page=PER_PAGE,
+    )
 
 def _duplicated_email() -> ConflictError:
     return ConflictError(MSG_EMAIL_DUPLICATED, fields={"correo_institucional": [MSG_EMAIL_DUPLICATED]})

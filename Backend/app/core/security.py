@@ -16,6 +16,7 @@ class _MemoryBlocklist:
 
     def __init__(self):
         self._store: dict[str, float] = {}
+        self._user_gen: dict[str, tuple[int, float]] = {}  # user_id -> (generación, vence)
 
     def add(self, jti: str, ttl: int) -> None:
         self._store[jti] = time.time() + max(1, ttl)
@@ -28,6 +29,25 @@ class _MemoryBlocklist:
             del self._store[jti]
             return False
         return True
+
+    def bump_user(self, user_id: int, ttl: int) -> int:
+        key = str(user_id)
+        current, expires_at = self._user_gen.get(key, (0, 0.0))
+        if expires_at < time.time():
+            current = 0
+        nxt = current + 1
+        self._user_gen[key] = (nxt, time.time() + max(1, ttl))
+        return nxt
+
+    def user_generation(self, user_id: int) -> int:
+        entry = self._user_gen.get(str(user_id))
+        if entry is None:
+            return 0
+        gen, expires_at = entry
+        if expires_at < time.time():
+            del self._user_gen[str(user_id)]
+            return 0
+        return gen
 
 
 class _RedisBlocklist:
@@ -43,6 +63,16 @@ class _RedisBlocklist:
 
     def contains(self, jti: str) -> bool:
         return self._redis.get(f"jwt:revoked:{jti}") is not None
+
+    def bump_user(self, user_id: int, ttl: int) -> int:
+        key = f"jwt:ugen:{user_id}"
+        val = int(self._redis.incr(key))
+        self._redis.expire(key, max(1, ttl))
+        return val
+
+    def user_generation(self, user_id: int) -> int:
+        val = self._redis.get(f"jwt:ugen:{user_id}")
+        return int(val) if val else 0
 
 
 def init_token_blocklist(app) -> None:
@@ -64,6 +94,22 @@ def jti_is_revoked(jti: str) -> bool:
         return False
     store = current_app.extensions.get("token_blocklist")
     return bool(store and store.contains(jti))
+
+
+def bump_user_generation(user_id: int, ttl_seconds: int) -> int:
+    """Invalida todas las sesiones vigentes del colaborador (cambio de rol, HU_08)."""
+    return current_app.extensions["token_blocklist"].bump_user(user_id, ttl_seconds)
+
+
+def user_generation(user_id: int) -> int:
+    store = current_app.extensions.get("token_blocklist")
+    if not store:
+        return 0
+    return store.user_generation(user_id)
+
+
+def user_tokens_revoked(user_id: int, token_generation: int) -> bool:
+    return token_generation < user_generation(user_id)
 
 
 # ---------------------------------------------------------------- tokens de un solo uso

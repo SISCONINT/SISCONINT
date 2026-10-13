@@ -7,8 +7,10 @@ TIPO_TIMER = "TIMER"
 TIPO_MANUAL = "MANUAL"
 
 
-class TemporizadorActivo(TimestampMixin, SoftDeleteMixin, db.Model):
-    """Un temporizador en curso por colaborador (módulo 8). HU_04 consulta si existe antes del logout."""
+class TemporizadorActivo(db.Model):
+    """Un temporizador en curso por colaborador (módulo 8). HU_04 consulta si existe antes del logout.
+
+    La tabla real no tiene created_at/updated_at/deleted_at: al detenerlo la fila se elimina."""
 
     __tablename__ = "temporizador_activo"
 

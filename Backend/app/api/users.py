@@ -39,3 +39,24 @@ def create_user():
     body = ColaboradorSchema().dump(user)
     body["correo_activacion_enviado"] = email_sent
     return ok(body, status=201)
+
+
+@bp.get("/<int:user_id>")
+@require_permission("user:view")
+def get_user(user_id: int):
+    """HU_08: ficha del colaborador (formulario precargado)."""
+    user = user_service.get_user(user_id)
+    return ok(ColaboradorSchema().dump(user))
+
+
+@bp.put("/<int:user_id>")
+@require_permission("user:edit")
+def update_user(user_id: int):
+    """HU_08: modificar colaborador, rol y grado escalafón."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ColaboradorUpdateSchema().load(payload)
+    user = user_service.update_user(g.current_user, user_id, data)
+    return ok(ColaboradorSchema().dump(user))

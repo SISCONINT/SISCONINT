@@ -1,4 +1,4 @@
-"""Esquemas de entrada/salida de colaboradores (HU_05)."""
+"""Esquemas de entrada/salida de colaboradores (HU_05, HU_08)."""
 from marshmallow import EXCLUDE, Schema, fields, pre_load, validate
 
 from app.core.errors import MSG_REQUIRED
@@ -72,6 +72,10 @@ class ColaboradorCreateSchema(Schema):
             if isinstance(clean.get(key), str):
                 clean[key] = clean[key].upper()
         return clean
+
+
+class ColaboradorUpdateSchema(ColaboradorCreateSchema):
+    """HU_08: mismos campos y validaciones que el alta."""
 
 
 class ColaboradorSchema(Schema):

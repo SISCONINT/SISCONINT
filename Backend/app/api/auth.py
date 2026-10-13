@@ -15,6 +15,7 @@ from flask_jwt_extended import (
 from app.core.errors import ValidationAppError
 from app.core.permissions import load_current_user, login_required
 from app.core.responses import ok
+from app.core.security import user_generation
 from app.schemas.auth_schema import LoginSchema, SessionUserSchema
 from app.services import auth_service
 
@@ -25,14 +26,15 @@ def _session_response(user):
     """Respuesta con los datos del usuario y las cookies de sesión (los tokens NO van en el cuerpo)."""
     cfg = current_app.config
     identity = str(user.id)
+    claims = {"ug": user_generation(user.id)}  # generación de sesión (se incrementa al cambiar el rol)
     response = jsonify({"data": SessionUserSchema().dump(user)})
     # max_age explícito: sin él las cookies serían de sesión de navegador o de un año.
     set_access_cookies(
-        response, create_access_token(identity=identity),
+        response, create_access_token(identity=identity, additional_claims=claims),
         max_age=int(cfg["JWT_ACCESS_TOKEN_EXPIRES"].total_seconds()),
     )
     set_refresh_cookies(
-        response, create_refresh_token(identity=identity),
+        response, create_refresh_token(identity=identity, additional_claims=claims),
         max_age=int(cfg["JWT_REFRESH_TOKEN_EXPIRES"].total_seconds()),
     )
     return response

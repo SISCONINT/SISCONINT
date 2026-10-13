@@ -187,6 +187,12 @@ def register_jwt_handlers():
 
     @jwt.token_in_blocklist_loader
     def _blocklisted(_header, payload: dict) -> bool:
-        from app.core.security import jti_is_revoked
+        from app.core.security import jti_is_revoked, user_tokens_revoked
 
-        return jti_is_revoked(payload.get("jti", ""))
+        if jti_is_revoked(payload.get("jti", "")):
+            return True
+        try:
+            user_id = int(payload.get("sub"))
+        except (TypeError, ValueError):
+            return False
+        return user_tokens_revoked(user_id, int(payload.get("ug", 0)))

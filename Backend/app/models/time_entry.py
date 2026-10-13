@@ -33,7 +33,8 @@ class RegistroTiempo(TimestampMixin, SoftDeleteMixin, db.Model):
     id = db.Column(BigId, primary_key=True)
     tarea_id = db.Column(BigId, db.ForeignKey("tarea.id"), nullable=False, index=True)
     colaborador_id = db.Column(BigId, db.ForeignKey("colaborador.id"), nullable=False, index=True)
-    permiso_fuera_plazo_id = db.Column(BigId, db.ForeignKey("permiso_fuera_plazo.id"))
+    # FK diferida: permiso_fuera_plazo llega con HU_55 (Módulo 8). El id igual se persiste.
+    permiso_fuera_plazo_id = db.Column(BigId)
     fecha = db.Column(db.Date, nullable=False, index=True)
     duracion_minutos = db.Column(db.Integer, nullable=False)
     tipo = db.Column(db.String(6), nullable=False)

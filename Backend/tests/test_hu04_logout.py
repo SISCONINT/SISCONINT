@@ -84,7 +84,7 @@ def test_refresh_token_is_revoked_together_with_access(client, make_user):
     assert _login(client, user.correo_institucional).status_code == 200
 
     access_cookie = client.get_cookie("SISCONNI_access_token")
-    refresh_cookie = client.get_cookie("SISCONNI_refresh_token")
+    refresh_cookie = client.get_cookie("SISCONNI_refresh_token", path="/api/v1/auth")
     csrf_refresh = client.get_cookie("csrf_refresh_token")
     assert access_cookie and refresh_cookie and csrf_refresh
     assert decode_token(access_cookie.value)["jti"]
@@ -122,7 +122,7 @@ def test_logout_succeeds_after_timer_is_stopped(client, auth_headers, make_user)
 
     assert client.post(LOGOUT, headers=headers).status_code == 409
 
-    timer.deleted_at = utcnow()
+    db.session.delete(timer)  # al detener el temporizador la fila se elimina
     db.session.commit()
 
     res = client.post(LOGOUT, headers=headers)

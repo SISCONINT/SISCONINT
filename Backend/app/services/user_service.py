@@ -11,7 +11,7 @@ from app.core.permissions import ROL_DUENO, admin_may_edit, can_assign_role
 from app.core.security import bump_user_generation, generate_token
 from app.extensions import db
 from app.models.auth_token import EnlaceActivacion
-from app.models.user import ESTATUS_ACTIVO, Colaborador
+from app.models.user import ESTATUS_ACTIVO, ROL_ADMINISTRADOR, Colaborador
 from app.repositories import user_repository
 
 MSG_EMAIL_DUPLICATED = "El correo ya está registrado"

@@ -1,10 +1,10 @@
 """HU_29. Acceso a datos de tareas."""
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.extensions import db
 from app.models.catalog import CategoriaProyecto
 from app.models.client import Cliente
-from app.models.task import HistorialEstadoTarea, Tarea
+from app.models.task import ESTADO_COMPLETADO, HistorialEstadoTarea, Tarea
 from app.models.user import ESTATUS_ACTIVO, ROL_CONTADOR, Colaborador
 
 
@@ -53,3 +53,22 @@ def add_historial(
     )
     db.session.add(h)
     return h
+
+# ---------------------------------------------------------------------------
+# HU_09 (desactivar colaborador)
+# ---------------------------------------------------------------------------
+def _open_by_assignee_stmt(asignado_id: int):
+    return select(Tarea).where(
+        Tarea.asignado_id == asignado_id,
+        Tarea.estado != ESTADO_COMPLETADO,
+        Tarea.deleted_at.is_(None),
+    )
+
+
+def count_open_by_assignee(asignado_id: int) -> int:
+    stmt = select(func.count()).select_from(_open_by_assignee_stmt(asignado_id).subquery())
+    return db.session.scalar(stmt) or 0
+
+
+def list_open_by_assignee(asignado_id: int) -> list[Tarea]:
+    return list(db.session.execute(_open_by_assignee_stmt(asignado_id).order_by(Tarea.id)).scalars())

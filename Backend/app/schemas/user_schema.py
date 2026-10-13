@@ -78,6 +78,40 @@ class ColaboradorUpdateSchema(ColaboradorCreateSchema):
     """HU_08: mismos campos y validaciones que el alta."""
 
 
+class ColaboradorDeactivateSchema(Schema):
+    """HU_09. `reasignar_a` es el id del Contador/Coordinador que recibe clientes y tareas abiertas."""
+
+    class Meta:
+        unknown = EXCLUDE
+
+    reasignar_a = fields.Integer(
+        load_default=None, allow_none=True, strict=True,
+        validate=validate.Range(min=1, error="Valor no válido"),
+        error_messages=_OPT,
+    )
+
+    @pre_load
+    def reject_booleans(self, data, **_kwargs):
+        # En Python True == 1: sin esto `true` se leería como el colaborador con id 1.
+        if isinstance(data, dict) and isinstance(data.get("reasignar_a"), bool):
+            return {**data, "reasignar_a": "invalido"}
+        return data
+
+
+class ReasignadoASchema(Schema):
+    id = fields.Integer()
+    nombre_completo = fields.String()
+    rol = fields.String()
+
+
+class DeactivationImpactSchema(Schema):
+    colaborador_id = fields.Integer()
+    clientes_asignados = fields.Integer()
+    tareas_abiertas = fields.Integer()
+    requiere_reasignacion = fields.Boolean()
+    destinos = fields.List(fields.Nested(ReasignadoASchema))
+
+
 class ColaboradorSchema(Schema):
     """Salida: nunca incluye password_hash."""
 

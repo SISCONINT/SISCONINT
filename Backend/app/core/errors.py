@@ -36,6 +36,12 @@ class ValidationAppError(AppError):
     default_message = "Hay campos con errores"
 
 
+class ReassignmentRequiredError(ValidationAppError):
+    """HU_09: el colaborador tiene clientes o tareas abiertas y no se indicó a quién reasignarlos."""
+
+    code = "REASSIGNMENT_REQUIRED"
+
+
 class UnauthorizedError(AppError):
     status = 401
     code = "UNAUTHORIZED"

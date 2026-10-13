@@ -3,7 +3,7 @@ from sqlalchemy import func, or_, select
 
 from app.extensions import db
 from app.models.auth_token import EnlaceActivacion
-from app.models.user import ESTATUS_ACTIVO, Colaborador
+from app.models.user import ESTATUS_ACTIVO, ROL_CONTADOR, ROL_COORDINADOR, Colaborador
 
 
 def get_by_id(user_id: int) -> Colaborador | None:
@@ -77,3 +77,23 @@ def search(q: str | None, rol: str | None, estatus: str, page: int, per_page: in
         )
     stmt = stmt.order_by(func.lower(Colaborador.nombre_completo), Colaborador.id)  # id desempata: páginas estables
     return db.paginate(stmt, page=page, per_page=per_page, max_per_page=per_page, error_out=False)
+
+
+def _reassign_targets_stmt(exclude_id: int):
+    """HU_09. Quién puede recibir clientes y tareas: Contador o Coordinador Activo."""
+    return select(Colaborador).where(
+        Colaborador.id != exclude_id,
+        Colaborador.rol.in_((ROL_CONTADOR, ROL_COORDINADOR)),
+        Colaborador.estatus == ESTATUS_ACTIVO,
+        Colaborador.deleted_at.is_(None),
+    )
+
+
+def list_reassign_targets(exclude_id: int) -> list[Colaborador]:
+    stmt = _reassign_targets_stmt(exclude_id).order_by(func.lower(Colaborador.nombre_completo), Colaborador.id)
+    return list(db.session.execute(stmt).scalars())
+
+
+def get_reassign_target(target_id: int, exclude_id: int) -> Colaborador | None:
+    stmt = _reassign_targets_stmt(exclude_id).where(Colaborador.id == target_id)
+    return db.session.execute(stmt).scalar_one_or_none()

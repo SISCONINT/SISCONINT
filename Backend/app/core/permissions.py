@@ -15,11 +15,15 @@ from app.models.user import (
     Colaborador,
 )
 
-# Permiso -> roles que lo tienen. El Dueño figura en todos (hereda Administrador y Coordinador).
 PERMISSIONS: dict[str, frozenset[str]] = {
-    "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_05
-    "user:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_08 ficha
-    "user:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),  # HU_08
+    "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                  # HU_05
+    "user:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_06
+    "user:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_08 ficha
+    "user:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_08
+    "client:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                # HU_11
+    "client:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_12
+    "catalog:read": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_25
+    "task:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),                 # HU_29
 }
 
 # El Administrador no edita ni asigna Dueño/Administrador (HU_08).
@@ -45,7 +49,6 @@ def admin_may_edit(target_rol: str) -> bool:
 
 
 def load_current_user() -> Colaborador:
-    """Usuario del JWT ya validado. 401 si la cuenta ya no existe o está desactivada."""
     try:
         user_id = int(get_jwt_identity())
     except (TypeError, ValueError):
@@ -57,8 +60,6 @@ def load_current_user() -> Colaborador:
 
 
 def login_required(fn):
-    """Exige sesión válida (cookie o cabecera) y deja al usuario en g.current_user."""
-
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
@@ -69,8 +70,6 @@ def login_required(fn):
 
 
 def require_permission(permission: str):
-    """Valida el JWT, carga al usuario en g.current_user y exige el permiso (RG-02)."""
-
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):

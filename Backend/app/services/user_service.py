@@ -1,10 +1,13 @@
 """Lógica de negocio de colaboradores. No conoce HTTP."""
 from datetime import timedelta
 
+from flask_sqlalchemy.pagination import Pagination   # junto a los imports de flask
+
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from app.core import audit
+from app.core.pagination import PER_PAGE              # junto a los de app.core
 from app.core.datetime_utils import utcnow
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.core.permissions import ROL_DUENO, admin_may_edit, can_assign_role
@@ -72,6 +75,15 @@ def register_user(actor: Colaborador, data: dict) -> tuple[Colaborador, str]:
 
     return user, raw_token
 
+def list_users(filters: dict) -> Pagination:
+    """HU_06. Página de colaboradores según los filtros ya validados (RG-07: 20 por página)."""
+    return user_repository.search(
+        q=filters.get("q"),
+        rol=filters.get("rol"),
+        estatus=filters["estatus"],
+        page=filters["page"],
+        per_page=PER_PAGE,
+    )
 
 def get_user(user_id: int) -> Colaborador:
     """HU_08: ficha para precargar el formulario. 404 si no existe o está eliminado."""

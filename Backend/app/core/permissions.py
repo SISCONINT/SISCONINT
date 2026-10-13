@@ -20,6 +20,7 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "user:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_06
     "user:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_08 ficha
     "user:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_08
+    "user:deactivate": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                              # HU_09
     "client:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                # HU_11
     "client:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_12
     "catalog:read": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_25

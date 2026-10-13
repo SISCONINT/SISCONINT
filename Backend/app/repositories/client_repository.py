@@ -171,3 +171,26 @@ def indicators_for(cliente_ids: list[int]) -> dict[int, dict]:
         }
         for cid in cliente_ids
     }
+
+# ---------------------------------------------------------------------------
+# HU_09 (desactivar colaborador)
+# ---------------------------------------------------------------------------
+# Los clientes en Baja ya no se atienden: conservan al contador con el que cerraron su historial.
+_REASSIGNABLE_STATUSES = ("ACTIVO", "PAUSADO")
+
+
+def _reassignable_stmt(contador_id: int):
+    return select(Cliente).where(
+        Cliente.contador_asignado_id == contador_id,
+        Cliente.deleted_at.is_(None),
+        Cliente.estatus.in_(_REASSIGNABLE_STATUSES),
+    )
+
+
+def count_reassignable(contador_id: int) -> int:
+    stmt = select(func.count()).select_from(_reassignable_stmt(contador_id).subquery())
+    return db.session.scalar(stmt) or 0
+
+
+def list_reassignable(contador_id: int) -> list[Cliente]:
+    return list(db.session.execute(_reassignable_stmt(contador_id).order_by(Cliente.id)).scalars())

@@ -6,7 +6,14 @@ from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
 from app.schemas.user_list_schema import ColaboradorListItemSchema, ColaboradorListQuerySchema
-from app.schemas.user_schema import ColaboradorCreateSchema, ColaboradorSchema
+from app.schemas.user_schema import (
+    ColaboradorCreateSchema,
+    ColaboradorDeactivateSchema,
+    ColaboradorSchema,
+    ColaboradorUpdateSchema,
+    DeactivationImpactSchema,
+    ReasignadoASchema,
+)
 from app.services import email_service, user_service
 
 bp = Blueprint("users", __name__, url_prefix="/users")
@@ -60,3 +67,33 @@ def update_user(user_id: int):
     data = ColaboradorUpdateSchema().load(payload)
     user = user_service.update_user(g.current_user, user_id, data)
     return ok(ColaboradorSchema().dump(user))
+
+
+@bp.get("/<int:user_id>/deactivation-impact")
+@require_permission("user:deactivate")
+def deactivation_impact(user_id: int):
+    """HU_09: cuántos clientes y tareas abiertas tiene y a quién se pueden reasignar."""
+    impact = user_service.get_deactivation_impact(g.current_user, user_id)
+    return ok(DeactivationImpactSchema().dump(impact))
+
+
+@bp.post("/<int:user_id>/deactivate")
+@require_permission("user:deactivate")
+def deactivate_user(user_id: int):
+    """HU_09: desactivar colaborador. Body opcional: {"reasignar_a": <id>} (obligatorio si tiene pendientes)."""
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ColaboradorDeactivateSchema().load(payload)
+    result = user_service.deactivate_user(g.current_user, user_id, data["reasignar_a"])
+
+    body = ColaboradorSchema().dump(result["colaborador"])
+    body["reasignacion"] = {
+        "reasignado_a": ReasignadoASchema().dump(result["reasignado_a"]) if result["reasignado_a"] else None,
+        "clientes": result["clientes_reasignados"],
+        "tareas": result["tareas_reasignadas"],
+    }
+    return ok(body)

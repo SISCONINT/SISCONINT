@@ -15,16 +15,15 @@ from app.models.user import (
     Colaborador,
 )
 
-# Permiso -> roles que lo tienen. El Dueño figura en todos (hereda Administrador y Coordinador).
 PERMISSIONS: dict[str, frozenset[str]] = {
     "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                  # HU_05
     "user:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_06
     "client:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                # HU_11
     "client:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_12
     "catalog:read": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_25
+    "task:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),                 # HU_29
 }
 
-# Roles que cada rol puede asignar al registrar/editar colaboradores (HU_05, HU_08).
 ASSIGNABLE_ROLES: dict[str, frozenset[str]] = {
     ROL_DUENO: frozenset(ROLES),
     ROL_ADMINISTRADOR: frozenset({ROL_COORDINADOR, ROL_CONTADOR}),
@@ -40,7 +39,6 @@ def can_assign_role(actor_rol: str, target_rol: str) -> bool:
 
 
 def load_current_user() -> Colaborador:
-    """Usuario del JWT ya validado. 401 si la cuenta ya no existe o está desactivada."""
     try:
         user_id = int(get_jwt_identity())
     except (TypeError, ValueError):

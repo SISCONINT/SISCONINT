@@ -5,6 +5,7 @@ from app.core.errors import ValidationAppError
 from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
+from app.repositories import client_repository
 from app.schemas.cliente_list_schema import ClienteListItemSchema, ClienteListQuerySchema
 from app.schemas.cliente_schema import ClienteCreateSchema
 from app.services import client_service
@@ -15,28 +16,29 @@ bp = Blueprint("clients", __name__, url_prefix="/clients")
 @bp.get("")
 @require_permission("client:list")
 def list_clients():
-    """HU_12: Consultar la lista de clientes (Dueño, Admin, Coordinador y Contador).
-
-    Query params: q, estatus (por defecto ACTIVO), contador, tipo_persona, page.
-    El Contador solo ve los asignados a él o con permiso de atención vigente (RG-12).
-    """
+    """HU_12: Consultar la lista de clientes (Dueño, Admin, Coordinador y Contador)."""
     filtros = ClienteListQuerySchema().load(request.args.to_dict())  # errores -> 422
     page = client_service.list_clients(g.current_user, filtros)
 
-    items = [
-        {
-            "id": cliente.id,
-            "nombre_completo": cliente.nombre_completo,
-            "razon_social": cliente.razon_social,
-            "rfc": cliente.rfc,
-            "tipo_persona": cliente.tipo_persona,
-            "contacto_principal_correo": contacto_correo,
-            "tareas_activas": int(tareas_activas or 0),
-            "horas_registradas": float(horas_registradas or 0),
-            "estatus": cliente.estatus,
-        }
-        for cliente, contacto_correo, tareas_activas, horas_registradas in page.items
-    ]
+    ids = [c.id for c in page.items]
+    indicadores = client_repository.indicators_for(ids)
+
+    items = []
+    for cliente in page.items:
+        ind = indicadores.get(cliente.id, {})
+        items.append(
+            {
+                "id": cliente.id,
+                "nombre_completo": cliente.nombre_completo,
+                "razon_social": cliente.razon_social,
+                "rfc": cliente.rfc,
+                "tipo_persona": cliente.tipo_persona,
+                "contacto_principal_correo": ind.get("contacto_principal_correo"),
+                "tareas_activas": ind.get("tareas_activas", 0),
+                "horas_registradas": ind.get("horas_registradas", 0.0),
+                "estatus": cliente.estatus,
+            }
+        )
 
     return ok(
         ClienteListItemSchema(many=True).dump(items),

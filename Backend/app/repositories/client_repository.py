@@ -1,14 +1,13 @@
 """HU_11-12. Acceso a datos de clientes."""
-from sqlalchemy import String, func, or_, select
+from sqlalchemy import func, or_, select
 
 from app.core.datetime_utils import today_mx
-from app.models.access_grant import PermisoAtencionCliente
-from app.models.task import Tarea
-from app.models.time_entry import RegistroTiempo
-
 from app.core.sql import escape_like
 from app.extensions import db
+from app.models.access_grant import PermisoAtencionCliente
 from app.models.client import Cliente, ContactoCliente, RegimenFiscal
+from app.models.task import Tarea
+from app.models.time_entry import RegistroTiempo
 from app.models.user import ESTATUS_ACTIVO, ROL_CONTADOR, Colaborador
 
 
@@ -16,13 +15,11 @@ from app.models.user import ESTATUS_ACTIVO, ROL_CONTADOR, Colaborador
 # HU_11
 # ---------------------------------------------------------------------------
 def find_by_rfc(rfc: str) -> Cliente | None:
-    """Busca un cliente NO eliminado por RFC (comparación exacta, ya viene en mayúsculas)."""
     stmt = select(Cliente).where(Cliente.rfc == rfc, Cliente.deleted_at.is_(None))
     return db.session.execute(stmt).scalar_one_or_none()
 
 
 def get_contador_activo(contador_id: int) -> Colaborador | None:
-    """Colaborador Activo con rol CONTADOR, no eliminado."""
     stmt = select(Colaborador).where(
         Colaborador.id == contador_id,
         Colaborador.rol == ROL_CONTADOR,
@@ -33,7 +30,6 @@ def get_contador_activo(contador_id: int) -> Colaborador | None:
 
 
 def regimenes_existen(claves: list[str]) -> set[str]:
-    """Subconjunto de claves que SÍ existen y están activas en regimen_fiscal."""
     if not claves:
         return set()
     stmt = select(RegimenFiscal.clave).where(
@@ -61,56 +57,13 @@ def search(
     page: int,
     per_page: int,
 ):
-    """HU_12. Listado paginado de clientes.
+    """HU_12. Paginación de la entidad Cliente + filtros y alcance del Contador.
 
-    `scope_contador_id`: si no es None, limita a los clientes asignados a ese Contador
-    o con permiso de atención vigente (RG-12). El alcance lo decide el servicio,
-    nunca el cliente de la API.
+    Devuelve el objeto Pagination; las columnas calculadas (contacto, tareas_activas,
+    horas_registradas) se resuelven aparte en `indicators_for(cliente_ids)`.
     """
-    # --- subconsultas correlacionadas para las columnas calculadas ---
-    contacto_principal = (
-        select(ContactoCliente.correo)
-        .where(
-            ContactoCliente.cliente_id == Cliente.id,
-            ContactoCliente.tipo == "PRINCIPAL",
-            ContactoCliente.deleted_at.is_(None),
-        )
-        .limit(1)
-        .scalar_subquery()
-    )
+    stmt = select(Cliente).where(Cliente.deleted_at.is_(None))
 
-
-    tareas_activas = (
-        select(func.count(Tarea.id))
-        .where(
-            Tarea.cliente_id == Cliente.id,
-            Tarea.estado != "COMPLETADO",
-            Tarea.deleted_at.is_(None),
-        )
-        .scalar_subquery()
-    )
-
-    horas_registradas = (
-        select(func.coalesce(func.sum(RegistroTiempo.duracion_minutos), 0) / 60.0)
-        .where(
-            RegistroTiempo.tarea_id.in_(
-                select(Tarea.id).where(
-                    Tarea.cliente_id == Cliente.id, Tarea.deleted_at.is_(None)
-                )
-            ),
-            RegistroTiempo.deleted_at.is_(None),
-        )
-        .scalar_subquery()
-    )
-
-    stmt = select(
-        Cliente,
-        contacto_principal.label("contacto_principal_correo"),
-        tareas_activas.label("tareas_activas"),
-        horas_registradas.label("horas_registradas"),
-    ).where(Cliente.deleted_at.is_(None))
-
-    # --- filtros ---
     if estatus:
         stmt = stmt.where(Cliente.estatus == estatus)
 
@@ -132,7 +85,6 @@ def search(
 
     # --- alcance del Contador (RG-12) ---
     if scope_contador_id is not None:
-        
         hoy = today_mx()
         permiso_vigente = (
             select(PermisoAtencionCliente.id)
@@ -153,10 +105,8 @@ def search(
             )
         )
 
-    # --- orden estable ---
     stmt = stmt.order_by(func.lower(Cliente.nombre_completo), Cliente.id)
 
-    # --- paginación: sobre la entidad Cliente ---
     return db.paginate(
         stmt,
         page=page,
@@ -164,3 +114,60 @@ def search(
         max_per_page=per_page,
         error_out=False,
     )
+
+
+def indicators_for(cliente_ids: list[int]) -> dict[int, dict]:
+    """HU_12. Columnas calculadas para los clientes de la página.
+
+    Devuelve {cliente_id: {"contacto_principal_correo", "tareas_activas", "horas_registradas"}}.
+    Hace 3 consultas agregadas sobre ≤ per_page IDs (sin N+1).
+    """
+    if not cliente_ids:
+        return {}
+
+    # 1) Correo del contacto principal (uno por cliente; índice único parcial lo garantiza).
+    contacto_rows = db.session.execute(
+        select(ContactoCliente.cliente_id, ContactoCliente.correo).where(
+            ContactoCliente.cliente_id.in_(cliente_ids),
+            ContactoCliente.tipo == "PRINCIPAL",
+            ContactoCliente.deleted_at.is_(None),
+        )
+    ).all()
+    contactos = {cliente_id: correo for cliente_id, correo in contacto_rows}
+
+    # 2) Tareas activas por cliente (no Completadas).
+    tareas_rows = db.session.execute(
+        select(Tarea.cliente_id, func.count(Tarea.id))
+        .where(
+            Tarea.cliente_id.in_(cliente_ids),
+            Tarea.estado != "COMPLETADO",
+            Tarea.deleted_at.is_(None),
+        )
+        .group_by(Tarea.cliente_id)
+    ).all()
+    tareas_activas = {cliente_id: int(total) for cliente_id, total in tareas_rows}
+
+    # 3) Horas registradas por cliente (SUM(minutos) / 60, redondeado a 1 decimal).
+    horas_rows = db.session.execute(
+        select(
+            Tarea.cliente_id,
+            func.coalesce(func.sum(RegistroTiempo.duracion_minutos), 0),
+        )
+        .join(RegistroTiempo, RegistroTiempo.tarea_id == Tarea.id)
+        .where(
+            Tarea.cliente_id.in_(cliente_ids),
+            Tarea.deleted_at.is_(None),
+            RegistroTiempo.deleted_at.is_(None),
+        )
+        .group_by(Tarea.cliente_id)
+    ).all()
+    horas = {cliente_id: round(int(minutos) / 60.0, 1) for cliente_id, minutos in horas_rows}
+
+    return {
+        cid: {
+            "contacto_principal_correo": contactos.get(cid),
+            "tareas_activas": tareas_activas.get(cid, 0),
+            "horas_registradas": horas.get(cid, 0.0),
+        }
+        for cid in cliente_ids
+    }

@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-navy-900: #0b1445;
+  --color-navy-800: #121d57;
+  --color-navy-700: #1b2866;
+  --color-gold-500: #f5d547;
+  --color-gold-700: #6b5a00;
+  --color-danger: #c81e1e;
+
+  --color-app: #f4f5f8;
+  --color-surface: #ffffff;
+  --color-line: #e5e7ee;
+  --color-ink: #111827;
+  --color-muted: #6b7280;
+  --color-on-dark: #c9cfe6;
+  --color-on-dark-muted: #7f89b5;
+
+  --font-display: "Montserrat", "Inter", system-ui, sans-serif;
+  --color-gold-300: #f8e27f;
+  --color-field: #f1f1f6;
+  --color-navy-950: #060b2e;
+
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 6%);
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-app font-sans text-sm text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-gold-500);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface shadow-card;
+  }
+}

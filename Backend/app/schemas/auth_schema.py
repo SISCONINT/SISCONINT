@@ -1,8 +1,8 @@
 """Esquemas de autenticación (HU_01)."""
-from marshmallow import EXCLUDE, Schema, fields, pre_load, validate
-
+from marshmallow import EXCLUDE, Schema, fields, pre_load, validate, validates, validates_schema, ValidationError
 from app.core.errors import MSG_REQUIRED
 from app.core.validators import not_blank
+from app.core.security import password_policy_errors
 
 _REQ = {"required": MSG_REQUIRED, "null": MSG_REQUIRED, "invalid": "Valor no válido"}
 
@@ -40,3 +40,22 @@ class SessionUserSchema(Schema):
     correo_institucional = fields.String()
     rol = fields.String()
     grado_escalafon = fields.String()
+    
+      
+class ActivateAccountSchema(Schema):
+    token = fields.String(required=True, validate=validate.Length(min=10))
+    password = fields.String(required=True)
+    password_confirm = fields.String(required=True)
+
+    @validates("password")
+    def validate_policy(self, value, **kwargs):
+        # Usamos tu función de security.py
+        errors = password_policy_errors(value)
+        if errors:
+            # Marshmallow espera que si hay error, se lance ValidationError
+            raise ValidationError(errors)
+
+    @validates_schema
+    def validate_match(self, data, **kwargs):
+        if data.get("password") != data.get("password_confirm"):
+            raise ValidationError({"password_confirm": ["Las contraseñas no coinciden"]})

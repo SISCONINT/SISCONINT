@@ -10,9 +10,14 @@ from app.core.errors import (
     AccountLockedError,
     InvalidCredentialsError,
     TimerActiveError,
+    UnauthorizedError,
+    NotFoundError,
+    ValidationAppError,
 )
 from app.core.security import revoke_jti, verify_password
 from app.extensions import db
+from app.core import audit
+from app.core.security import hash_password, revoke_jti, verify_password
 from app.models.user import Colaborador
 from app.repositories import auth_repository, user_repository
 from app.services import time_service
@@ -92,3 +97,34 @@ def _lock_remaining_seconds(correo: str) -> int:
         last_fail = last_fail.replace(tzinfo=timezone.utc)
     locked_until = last_fail + timedelta(minutes=cfg["LOGIN_LOCK_MINUTES"])
     return max(0, ceil((locked_until - utcnow()).total_seconds()))
+
+def activate_account(raw_token: str, new_password: str) -> Colaborador:
+    """Consume el enlace de activación y establece la contraseña."""
+    token_hash = auth_repository.hash_token(raw_token)
+    
+    link = auth_repository.get_valid_activation_link(token_hash)
+    if link is None:
+        raise UnauthorizedError("El enlace es inválido, ya fue usado o ha expirado")
+
+    user = auth_repository.get_user_by_id(link.colaborador_id)
+    if user is None or user.deleted_at is not None:
+        raise NotFoundError("El usuario ya no existe o fue eliminado")
+    
+    if user.estatus != "ACTIVO":
+        raise ValidationAppError("La cuenta está inactiva. Contacta al administrador.")
+
+    # Actualizar contraseña y marcar enlace como usado
+    user.password_hash = hash_password(new_password)
+    link.usado_en = utcnow()
+    
+    # Auditoría (RG-13)
+    audit.log(
+        usuario_id=user.id, 
+        entidad="colaborador", 
+        entidad_id=user.id, 
+        accion=audit.MODIFICAR, 
+        detalle={"accion": "activacion_cuenta", "metodo": "enlace"}
+    )
+
+    db.session.commit()
+    return user

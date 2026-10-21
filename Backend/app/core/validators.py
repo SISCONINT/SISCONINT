@@ -33,3 +33,16 @@ def validate_postal_code(value: str) -> None:
 def validate_cedula(value: str) -> None:
     if not _CEDULA_RE.match(value):
         raise ValidationError("La cédula debe tener 7 u 8 dígitos")
+    
+def validate_password(value: str) -> None:
+    """RG-05: mínimo 10 caracteres, con mayúscula, minúscula, número y símbolo."""
+    if not value or len(value) < 10:
+        raise ValidationError("La contraseña debe tener al menos 10 caracteres")
+    if not re.search(r"[A-Z]", value):
+        raise ValidationError("La contraseña debe incluir al menos una mayúscula")
+    if not re.search(r"[a-z]", value):
+        raise ValidationError("La contraseña debe incluir al menos una minúscula")
+    if not re.search(r"[0-9]", value):
+        raise ValidationError("La contraseña debe incluir al menos un número")
+    if not re.search(r"[^A-Za-z0-9]", value):
+        raise ValidationError("La contraseña debe incluir al menos un símbolo")

@@ -1,9 +1,11 @@
+import hashlib
 from datetime import datetime
-
 from sqlalchemy import func, select
 
 from app.extensions import db
-from app.models.auth_token import IntentoLogin
+from app.models.auth_token import IntentoLogin, EnlaceActivacion
+from app.models.user import Colaborador
+from app.core.datetime_utils import utcnow
 
 
 def add_attempt(correo: str, exitoso: bool, colaborador_id: int | None, ip: str | None) -> IntentoLogin:
@@ -27,3 +29,18 @@ def failure_streak(correo: str) -> tuple[int, datetime | None]:
 
     count, last_fail = db.session.execute(stmt).one()
     return count, last_fail
+
+def hash_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+def get_valid_activation_link(token_hash: str) -> EnlaceActivacion | None:
+    """Busca un enlace no usado y no vencido."""
+    stmt = select(EnlaceActivacion).where(
+        EnlaceActivacion.token_hash == token_hash,
+        EnlaceActivacion.usado_en.is_(None),
+        EnlaceActivacion.vence_en > utcnow(),
+    )
+    return db.session.execute(stmt).scalar_one_or_none()
+
+def get_user_by_id(user_id: int) -> Colaborador | None:
+    return db.session.get(Colaborador, user_id)

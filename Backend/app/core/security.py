@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 import time
+import redis
 from functools import lru_cache
 
 from argon2 import PasswordHasher
@@ -54,7 +55,6 @@ class _RedisBlocklist:
     """Arquitectura 3.4: jti revocados en Redis (logout, cambio de rol, etc.)."""
 
     def __init__(self, url: str):
-        import redis
 
         self._redis = redis.Redis.from_url(url, decode_responses=True)
 

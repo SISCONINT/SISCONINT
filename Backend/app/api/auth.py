@@ -16,7 +16,7 @@ from app.core.errors import ValidationAppError
 from app.core.permissions import load_current_user, login_required
 from app.core.responses import ok
 from app.core.security import user_generation
-from app.schemas.auth_schema import LoginSchema, SessionUserSchema
+from app.schemas.auth_schema import LoginSchema, SessionUserSchema, ActivateAccountSchema
 from app.services import auth_service
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -96,3 +96,15 @@ def _refresh_claims() -> tuple[str | None, int | None]:
     if payload.get("type") != "refresh":
         return None, None
     return payload.get("jti"), payload.get("exp")
+
+@bp.post("/activate")
+def activate():
+    """Consume el enlace de activación y define la contraseña."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ActivateAccountSchema().load(payload)  # Valida política RG-05 y campos
+    user = auth_service.activate_account(data["token"], data["password"])
+    
+    return ok({"message": "Contraseña establecida correctamente. Ya puedes iniciar sesión."})

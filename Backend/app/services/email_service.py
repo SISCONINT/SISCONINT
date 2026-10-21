@@ -1,44 +1,35 @@
-"""Envío de correos. Por ahora síncrono; la arquitectura prevé moverlo a Celery (jobs/email_job)."""
 from flask import current_app
 from flask_mail import Message
-
 from app.extensions import mail
 
+def send_activation_email(user, raw_token: str) -> bool:
+    """Envía el correo con el enlace de activación. Retorna True si se envió."""
+    activation_url = f"{current_app.config['FRONTEND_URL']}/activar?token={raw_token}"
+    
+    # Si estamos en desarrollo y no hay MAIL_SERVER, imprimimos en consola
+    if not current_app.config.get("MAIL_SERVER"):
+        current_app.logger.info("=== ENLACE DE ACTIVACIÓN (desarrollo) ===")
+        current_app.logger.info(activation_url)
+        return False  # O True, según cómo quieras reportarlo en HU_05
 
-def activation_url(token: str) -> str:
-    return f"{current_app.config['FRONTEND_URL']}/activar-cuenta?token={token}"
-
-
-def send_activation_email(user, token: str) -> bool:
-    """Envía el enlace para definir contraseña. Devuelve False si no se pudo enviar.
-
-    Un fallo de correo no debe deshacer el alta del colaborador: se registra y se informa.
-    """
-    cfg = current_app.config
-    url = activation_url(token)
-
-    if not cfg.get("MAIL_SERVER"):
-        if cfg["ENV_NAME"] != "production":
-            current_app.logger.warning("SMTP no configurado. Enlace de activación para %s: %s", user.correo_institucional, url)
-        else:
-            current_app.logger.error("SMTP no configurado: no se envió el enlace de activación a colaborador id=%s", user.id)
-        return False
-
-    hours = cfg["ACTIVATION_LINK_HOURS"]
     msg = Message(
-        subject="Activa tu cuenta en SISCONNI",
+        subject="Activa tu cuenta en SISCONNIT",
         recipients=[user.correo_institucional],
-        body=(
-            f"Hola {user.nombre_completo},\n\n"
-            "Se creó tu cuenta en SISCONNI, el sistema de gestión del despacho Téllez Ponce y Asociados.\n"
-            f"Define tu contraseña con el siguiente enlace (vigente {hours} horas):\n\n"
-            f"{url}\n\n"
-            "Si no esperabas este correo, ignóralo."
-        ),
     )
+    msg.body = f"""Hola {user.nombre_completo},
+
+Para definir tu contraseña y acceder al sistema, abre el siguiente enlace (válido por 48 horas):
+
+{activation_url}
+
+Si no solicitaste esto, ignora este correo.
+
+Atentamente,
+Téllez Ponce y Asociados
+"""
     try:
         mail.send(msg)
         return True
-    except Exception:  # noqa: BLE001 - cualquier fallo SMTP se reporta, no se propaga
-        current_app.logger.exception("Falló el envío del correo de activación (colaborador id=%s)", user.id)
+    except Exception as e:
+        current_app.logger.error(f"Error enviando correo a {user.correo_institucional}: {e}")
         return False

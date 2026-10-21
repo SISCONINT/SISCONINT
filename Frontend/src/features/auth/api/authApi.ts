@@ -1,7 +1,7 @@
-import { api } from "../../../shared/api/client";
-import type { ApiResponse } from "../../../shared/api/types";
-import type { AuthUser } from "../../../shared/auth/authStore";
-import type { Role } from "../../../shared/constants/roles";
+import { api } from "@/shared/api/client";
+import { ApiError, type ApiResponse } from "../../../shared/api/types";
+import type { AuthUser } from "@/shared/auth/authStore";
+import type { Role } from "@/shared/constants/roles";
 
 interface RawUser {
   id: number;
@@ -27,5 +27,14 @@ export const authApi = {
   me: async () => {
     const res = await api.get<ApiResponse<RawUser | { user: RawUser }>>("/auth/me");
     return toAuthUser(res.data.data);
+  },
+
+  logout: async () => {
+  try{
+    await api.post("/auth/logout");
+  } catch (e){
+    if (e instanceof ApiError && e.status === 401) return;
+    throw e;
+  }
   },
 };

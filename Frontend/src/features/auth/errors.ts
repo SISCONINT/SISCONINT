@@ -1,4 +1,4 @@
-import { ApiError } from "../../shared/api/types";
+import { ApiError } from "@/shared/api/types";
 
 export function loginErrorMessage(e: unknown): string {
   if (!(e instanceof ApiError)) return "Ocurrió un error inesperado. Intenta de nuevo.";

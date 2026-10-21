@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { authApi } from "../features/auth/api/authApi";
-import { useAuthStore } from "../shared/auth/authStore";
+import { authApi } from "@/features/auth/api/authApi";
+import { useAuthStore } from "@/shared/auth/authStore";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },

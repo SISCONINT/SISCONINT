@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Role } from "../../shared/constants/roles";
+import type { Role } from "@/shared/constants/roles";
 
 export interface AuthUser {
   id: number;

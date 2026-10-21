@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { Landmark, Settings, LifeBuoy } from "lucide-react";
+import { Landmark, Settings, LifeBuoy, LogOut } from "lucide-react";
 import clsx from "clsx";
 import { useAuthStore } from "../../shared/auth/authStore";
 import { getNavForRole } from "../../shared/auth/permissions";
 import { ROLE_LABELS } from "../../shared/constants/roles";
+import { useLogout } from "../../features/auth/api/useLogout";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   clsx(
@@ -15,6 +16,8 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 export function Sidebar() {
   const user = useAuthStore((s) => s.user);
+  const { mutate, isPending, isError } = useLogout();
+
   if (!user) return null;
   const sections = getNavForRole(user.rol);
 
@@ -81,6 +84,26 @@ export function Sidebar() {
         <span className="hidden px-2.5 pt-2 text-[10px] text-on-dark-muted lg:block">
           v{import.meta.env.VITE_APP_VERSION ?? "0.1.0"}
         </span>
+
+        <button 
+        type="button" 
+        title="Cerrar sesion"
+        className={clsx(linkClass({ isActive: false }), "w-full disabled:opacity-60")} 
+        disabled={isPending} 
+        onClick={()=> mutate()}>
+          <LogOut size={17} className="shrink-0" />
+          <span className="hidden lg:inline">
+            {isPending ? "Saliendo…" : "Cerrar sesión"}
+          </span>
+        </button>
+
+        {isError && (
+          <p role="alert" 
+          className="hidden px-2.5 text-[11px] font-medium text-red-300 lg:block"
+          >
+            No se pudo cerrar la sesión. Intenta de nuevo.
+          </p>
+        )}
       </div>
     </aside>
   );

@@ -78,3 +78,55 @@ class HistorialEstadoTarea(db.Model):
     estado_nuevo = db.Column(db.String(12), nullable=False)
     usuario_id = db.Column(BigId, db.ForeignKey("colaborador.id"))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)  # se llena en __init__
+
+
+class Subtarea(TimestampMixin, SoftDeleteMixin, db.Model):
+    """HU_31, HU_34-37. Pasos verificables de una tarea (máximo 30 por tarea)."""
+
+    __tablename__ = "subtarea"
+
+    id = db.Column(BigId, primary_key=True)
+    tarea_id = db.Column(BigId, db.ForeignKey("tarea.id"), nullable=False, index=True)
+    titulo = db.Column(db.String(150), nullable=False)
+    completada = db.Column(db.Boolean, nullable=False, default=False)
+    completada_por = db.Column(BigId, db.ForeignKey("colaborador.id"))
+    completada_en = db.Column(db.DateTime(timezone=True))
+    created_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
+    updated_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "tarea_id": self.tarea_id,
+            "titulo": self.titulo,
+            "completada": self.completada,
+            "completada_por": self.completada_por,
+            "completada_en": self.completada_en.isoformat() if self.completada_en else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class Comentario(TimestampMixin, SoftDeleteMixin, db.Model):
+    """HU_31, HU_38-40. Comentarios de la tarea (texto máximo 1,000 caracteres)."""
+
+    __tablename__ = "comentario"
+
+    id = db.Column(BigId, primary_key=True)
+    tarea_id = db.Column(BigId, db.ForeignKey("tarea.id"), nullable=False, index=True)
+    autor_id = db.Column(BigId, db.ForeignKey("colaborador.id"), nullable=False, index=True)
+    texto = db.Column(db.String(1000), nullable=False)
+    editado = db.Column(db.Boolean, nullable=False, default=False)
+    created_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
+    updated_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "tarea_id": self.tarea_id,
+            "autor_id": self.autor_id,
+            "texto": self.texto,
+            "editado": self.editado,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

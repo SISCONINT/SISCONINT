@@ -1,10 +1,11 @@
-"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29 (POST) y HU_30 (GET)."""
+"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29 (POST), HU_30 (GET) y HU_31 (GET detalle)."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
 from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
+from app.schemas.tarea_detail_schema import TareaDetailSchema
 from app.schemas.tarea_list_schema import TareaListItemSchema, TareaListQuerySchema
 from app.schemas.tarea_schema import TareaCreateSchema
 from app.services import task_service
@@ -23,6 +24,18 @@ def list_tasks():
     filtros = TareaListQuerySchema().load(request.args.to_dict())  # errores -> 422
     items, page = task_service.list_tasks(g.current_user, filtros)
     return ok(TareaListItemSchema(many=True).dump(items), meta=pagination_meta(page))
+
+
+@bp.get("/<int:tarea_id>")
+@require_permission("task:view")
+def get_task(tarea_id: int):
+    """HU_31: Consultar el detalle de una tarea (los 4 roles, con alcance RG-12).
+
+    Devuelve todos los campos, creador, semáforo, subtareas con avance, comentarios,
+    historial de estados y tiempo registrado total y por colaborador.
+    """
+    detalle = task_service.get_task_detail(g.current_user, tarea_id)
+    return ok(TareaDetailSchema().dump(detalle))
 
 
 @bp.post("")

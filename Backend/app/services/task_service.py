@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core import audit
 from app.core.datetime_utils import today_mx
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PER_PAGE
 from app.core.semaforo import calcular_semaforo, dias_restantes
 from app.extensions import db
@@ -152,6 +152,108 @@ def _list_item(tarea: Tarea, detalle: dict, hoy: date) -> dict:
         "semaforo": calcular_semaforo(tarea.estado, tarea.fecha_limite, hoy),
         "dias_restantes": dias_restantes(tarea.fecha_limite, hoy),
     }
+
+
+def get_task_detail(actor, tarea_id: int) -> dict:
+    """HU_31. Detalle completo de una tarea y su contexto.
+
+    Incluye todos los campos, creador, semáforo, subtareas con su avance,
+    comentarios, historial de estados y tiempo registrado total y por colaborador
+    frente a las horas estimadas. El Contador solo abre sus tareas (RG-12).
+    """
+    tarea = task_repository.get_by_id(tarea_id)
+    if tarea is None:
+        raise NotFoundError("Tarea no encontrada")
+
+    _assert_can_view(actor, tarea)
+
+    detalle = task_repository.details_for([tarea.id]).get(tarea.id, {})
+    subtareas = task_repository.list_subtareas(tarea.id)
+    comentarios = task_repository.list_comentarios(tarea.id)
+    historial_estados = task_repository.list_historial_estados(tarea.id)
+    por_colaborador = task_repository.time_summary(tarea.id)
+
+    total_subtareas = len(subtareas)
+    subtareas_completadas = sum(1 for subtarea in subtareas if subtarea["completada"])
+    total_minutos = sum(item["minutos"] for item in por_colaborador)
+    total_horas = round(total_minutos / 60, 2)
+    horas_estimadas = (
+        float(tarea.horas_estimadas) if tarea.horas_estimadas is not None else None
+    )
+    porcentaje_registrado = None
+    if horas_estimadas is not None and horas_estimadas > 0:
+        porcentaje_registrado = round(total_horas / horas_estimadas * 100, 1)
+
+    hoy = today_mx()
+    return {
+        "id": tarea.id,
+        "titulo": tarea.titulo,
+        "descripcion": tarea.descripcion,
+        "cliente_id": tarea.cliente_id,
+        "cliente_nombre": detalle.get("cliente_nombre"),
+        "categoria_id": tarea.categoria_id,
+        "categoria_nombre": detalle.get("categoria_nombre"),
+        "categoria_padre_nombre": detalle.get("categoria_padre_nombre"),
+        "asignado_id": tarea.asignado_id,
+        "asignado_nombre": detalle.get("asignado_nombre"),
+        "creador_id": tarea.creador_id,
+        "creador_nombre": detalle.get("creador_nombre"),
+        "obligacion_id": tarea.obligacion_id,
+        "periodo": tarea.periodo,
+        "fecha_limite": tarea.fecha_limite,
+        "hora_limite": tarea.hora_limite.strftime("%H:%M") if tarea.hora_limite else None,
+        "prioridad": tarea.prioridad,
+        "estado": tarea.estado,
+        "horas_estimadas": horas_estimadas,
+        "notificar_cliente": tarea.notificar_cliente,
+        "cliente_notificado": tarea.cliente_notificado,
+        "completada_en": tarea.completada_en,
+        "completada_por": tarea.completada_por,
+        "completada_por_nombre": detalle.get("completada_por_nombre"),
+        "created_by": tarea.created_by,
+        "updated_by": tarea.updated_by,
+        "created_at": tarea.created_at,
+        "updated_at": tarea.updated_at,
+        "semaforo": calcular_semaforo(tarea.estado, tarea.fecha_limite, hoy),
+        "dias_restantes": dias_restantes(tarea.fecha_limite, hoy),
+        "subtareas": {
+            "items": subtareas,
+            "total": total_subtareas,
+            "completadas": subtareas_completadas,
+            "avance": f"{subtareas_completadas}/{total_subtareas}",
+            "porcentaje": (
+                round(subtareas_completadas * 100 / total_subtareas, 1)
+                if total_subtareas
+                else 0.0
+            ),
+        },
+        "comentarios": comentarios,
+        "historial_estados": historial_estados,
+        "tiempo": {
+            "total_minutos": total_minutos,
+            "total_horas": total_horas,
+            "horas_estimadas": horas_estimadas,
+            "porcentaje_registrado": porcentaje_registrado,
+            "por_colaborador": [
+                {
+                    "colaborador_id": item["colaborador_id"],
+                    "colaborador_nombre": item["colaborador_nombre"],
+                    "minutos": item["minutos"],
+                    "horas": round(item["minutos"] / 60, 2),
+                }
+                for item in por_colaborador
+            ],
+        },
+    }
+
+
+def _assert_can_view(actor, tarea: Tarea) -> None:
+    """RG-12: el Contador solo abre tareas asignadas a él o creadas por él."""
+    if actor.rol != ROL_CONTADOR:
+        return
+    if tarea.asignado_id == actor.id or tarea.creador_id == actor.id:
+        return
+    raise ForbiddenError()
 
 
 def _notificar_asignacion(tarea: Tarea, actor) -> None:

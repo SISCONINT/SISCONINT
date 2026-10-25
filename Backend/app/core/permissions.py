@@ -30,6 +30,7 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "task:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_32
     "task:delete": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_33
     "task:board": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),    # HU_41
+    "task:move": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_43
 }
 
 # El Administrador no edita ni asigna Dueño/Administrador (HU_08).

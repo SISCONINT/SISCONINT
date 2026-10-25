@@ -1,4 +1,4 @@
-"""HU_29-33, HU_41. Lógica de negocio de tareas."""
+"""HU_29-33, HU_41-43. Lógica de negocio de tareas."""
 from datetime import date, time, timedelta
 from decimal import Decimal
 
@@ -10,7 +10,12 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError, Valida
 from app.core.pagination import PER_PAGE
 from app.core.semaforo import calcular_semaforo, dias_restantes
 from app.extensions import db
-from app.models.notification import TIPO_CAMBIO_FECHA, TIPO_REASIGNACION, Notificacion
+from app.models.notification import (
+    TIPO_CAMBIO_ESTADO,
+    TIPO_CAMBIO_FECHA,
+    TIPO_REASIGNACION,
+    Notificacion,
+)
 from app.models.task import (
     ESTADO_COMPLETADO,
     ESTADO_EN_PROGRESO,
@@ -20,6 +25,7 @@ from app.models.task import (
 )
 from app.models.user import ROL_ADMINISTRADOR, ROL_CONTADOR, ROL_COORDINADOR
 from app.repositories import task_repository
+from app.services import email_service
 
 
 def create_task(actor, data: dict) -> Tarea:
@@ -677,3 +683,145 @@ def _kanban_card(tarea: Tarea, detalle: dict, minutos: int, hoy: date) -> dict:
         "porcentaje_registrado": porcentaje_registrado,
         "completada_en": tarea.completada_en,
     }
+
+
+# ---------------------------------------------------------------------------
+# HU_43: mover tarea entre columnas
+# ---------------------------------------------------------------------------
+MSG_SUBTAREAS_PENDIENTES = (
+    "La tarea tiene subtareas pendientes; confirma para moverla a Completado"
+)
+MSG_NO_MOVER = "No se pudo mover la tarea"
+
+
+def move_task(
+    actor,
+    tarea_id: int,
+    estado: str,
+    confirmar_subtareas_pendientes: bool = False,
+) -> Tarea:
+    """HU_43. Cambia el estado de una tarea y registra historial, auditoría y avisos.
+
+    Reglas:
+      - Dueño, Administrador y Coordinador mueven cualquier tarea; el Contador solo
+        las asignadas a él (aunque las haya creado otro rol). Mover no le concede
+        permiso para editar ni eliminar (HU_32/33).
+      - Se permite cualquier transición, hacia adelante o hacia atrás.
+      - Al pasar a Completado se guarda fecha, hora y usuario de cierre; si quedan
+        subtareas pendientes se exige confirmación explícita (409 con el conteo).
+        Al reabrirla se limpian los datos de cierre.
+      - Cada cambio queda en el historial y en la bitácora (RG-13), y avisa in-app
+        al creador (HU_67). Completado avisa al cliente por correo una sola vez
+        (HU_70).
+    """
+    tarea = task_repository.get_by_id(tarea_id)
+    if tarea is None:
+        raise NotFoundError("Tarea no encontrada")
+
+    _assert_can_move(actor, tarea)
+
+    if estado == tarea.estado:
+        return tarea
+
+    if estado == ESTADO_COMPLETADO:
+        pendientes = task_repository.count_pending_subtareas(tarea.id)
+        if pendientes and not confirmar_subtareas_pendientes:
+            raise ConflictError(
+                MSG_SUBTAREAS_PENDIENTES,
+                extra={"subtareas_pendientes": pendientes},
+            )
+
+    anterior = tarea.estado
+    tarea.estado = estado
+    tarea.updated_by = actor.id
+    if estado == ESTADO_COMPLETADO:
+        tarea.completada_en = utcnow()
+        tarea.completada_por = actor.id
+    elif anterior == ESTADO_COMPLETADO:
+        tarea.completada_en = None
+        tarea.completada_por = None
+
+    try:
+        task_repository.add_historial(
+            tarea_id=tarea.id,
+            estado_anterior=anterior,
+            estado_nuevo=estado,
+            usuario_id=actor.id,
+        )
+        audit.log(
+            actor.id,
+            entidad="tarea",
+            entidad_id=tarea.id,
+            accion=audit.ESTATUS,
+            detalle={
+                "estado_anterior": anterior,
+                "estado_nuevo": estado,
+                "completada_en": (
+                    tarea.completada_en.isoformat() if tarea.completada_en else None
+                ),
+            },
+        )
+        _notificar_cambio_estado(tarea, anterior, actor)
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ConflictError(MSG_NO_MOVER) from exc
+
+    _avisar_cliente_conclusion(tarea, anterior, actor)
+    return tarea
+
+
+def _assert_can_move(actor, tarea: Tarea) -> None:
+    """HU_43: el Contador solo mueve las tareas asignadas a él (RG-12)."""
+    if actor.rol == ROL_CONTADOR and tarea.asignado_id != actor.id:
+        raise ForbiddenError()
+
+
+def _notificar_cambio_estado(tarea: Tarea, anterior: str, actor) -> None:
+    """HU_67: solo in-app y solo al creador, si no fue él quien movió la tarea."""
+    if tarea.creador_id is None or tarea.creador_id == actor.id:
+        return
+
+    etiquetas = dict(COLUMNAS_KANBAN)
+    db.session.add(
+        Notificacion(
+            usuario_id=tarea.creador_id,
+            tipo=TIPO_CAMBIO_ESTADO,
+            titulo="Cambió el estado de la tarea",
+            mensaje=(
+                f"{tarea.titulo}: de {etiquetas.get(anterior, anterior)} a "
+                f"{etiquetas.get(tarea.estado, tarea.estado)} por {actor.nombre_completo}"
+            ),
+            entidad_tipo="TAREA",
+            entidad_id=tarea.id,
+        )
+    )
+
+
+def _avisar_cliente_conclusion(tarea: Tarea, anterior: str, actor) -> None:
+    """HU_43/HU_70: correo al cliente al completar, una sola vez por tarea.
+
+    Se envía después del commit para que un fallo del correo no revierta el cambio
+    de estado. La marca `cliente_notificado` solo se pone si el correo salió.
+    """
+    if anterior == ESTADO_COMPLETADO or tarea.estado != ESTADO_COMPLETADO:
+        return
+    if not tarea.notificar_cliente or tarea.cliente_notificado:
+        return
+
+    cliente = task_repository.get_cliente(tarea.cliente_id)
+    if cliente is None:
+        return
+
+    destinatario = (
+        task_repository.get_contacto_principal_correo(cliente.id) or cliente.correo
+    )
+    if not destinatario:
+        return
+
+    if not email_service.send_task_completed_email(cliente, tarea, destinatario):
+        return
+
+    tarea.cliente_notificado = True
+    tarea.updated_by = actor.id
+    db.session.commit()

@@ -1,4 +1,4 @@
-"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-33, HU_41-42 (tablero Kanban)."""
+"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-33, HU_41-43 (tablero Kanban)."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
@@ -7,6 +7,7 @@ from app.core.permissions import require_permission
 from app.core.responses import ok
 from app.schemas.tarea_board_schema import TareaBoardQuerySchema, TareaBoardSchema
 from app.schemas.tarea_detail_schema import TareaDetailSchema
+from app.schemas.tarea_estado_schema import TareaEstadoSchema
 from app.schemas.tarea_list_schema import TareaListItemSchema, TareaListQuerySchema
 from app.schemas.tarea_schema import TareaCreateSchema, TareaUpdateSchema
 from app.services import task_service
@@ -69,6 +70,30 @@ def update_task(tarea_id: int):
 
     data = TareaUpdateSchema().load(payload)  # errores -> 422
     tarea = task_service.update_task(g.current_user, tarea_id, data)
+    detalle = task_service.get_task_detail(g.current_user, tarea.id)
+    return ok(TareaDetailSchema().dump(detalle))
+
+
+@bp.patch("/<int:tarea_id>/estado")
+@require_permission("task:move")
+def move_task(tarea_id: int):
+    """HU_43: Mover tarea entre columnas (los 4 roles; el Contador solo las suyas).
+
+    Recibe el estado destino y, opcionalmente, `confirmar_subtareas_pendientes`
+    (RG-14) para pasar a Completado con subtareas sin terminar. Devuelve la tarea
+    con el mismo contrato del detalle, con el historial ya actualizado.
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = TareaEstadoSchema().load(payload)  # errores -> 422
+    tarea = task_service.move_task(
+        g.current_user,
+        tarea_id,
+        data["estado"],
+        data["confirmar_subtareas_pendientes"],
+    )
     detalle = task_service.get_task_detail(g.current_user, tarea.id)
     return ok(TareaDetailSchema().dump(detalle))
 

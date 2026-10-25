@@ -14,7 +14,7 @@ from app.core.semaforo import (
 )
 from app.extensions import db
 from app.models.catalog import CategoriaProyecto
-from app.models.client import Cliente
+from app.models.client import CONTACTO_PRINCIPAL, Cliente, ContactoCliente
 from app.models.task import (
     ESTADO_COMPLETADO,
     Comentario,
@@ -460,6 +460,29 @@ def time_totals_for(tarea_ids: list[int]) -> dict[int, int]:
         tarea_id: int(minutos)
         for tarea_id, minutos in db.session.execute(stmt).all()
     }
+
+
+# ---------------------------------------------------------------------------
+# HU_43: mover tarea entre columnas
+# ---------------------------------------------------------------------------
+def count_pending_subtareas(tarea_id: int) -> int:
+    """Subtareas sin completar y no eliminadas (HU_43: confirmación al completar)."""
+    stmt = select(func.count(Subtarea.id)).where(
+        Subtarea.tarea_id == tarea_id,
+        Subtarea.completada.is_(False),
+        Subtarea.deleted_at.is_(None),
+    )
+    return int(db.session.scalar(stmt) or 0)
+
+
+def get_contacto_principal_correo(cliente_id: int) -> str | None:
+    """Correo del contacto PRINCIPAL vigente (HU_70: aviso al cliente)."""
+    stmt = select(ContactoCliente.correo).where(
+        ContactoCliente.cliente_id == cliente_id,
+        ContactoCliente.tipo == CONTACTO_PRINCIPAL,
+        ContactoCliente.deleted_at.is_(None),
+    )
+    return db.session.execute(stmt).scalar_one_or_none()
 
 
 # ---------------------------------------------------------------------------

@@ -1,10 +1,16 @@
-"""HU_29. Lógica de negocio de tareas."""
+"""HU_29-30. Lógica de negocio de tareas."""
+from datetime import date
+
 from sqlalchemy.exc import IntegrityError
 
 from app.core import audit
+from app.core.datetime_utils import today_mx
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.pagination import PER_PAGE
+from app.core.semaforo import calcular_semaforo, dias_restantes
 from app.extensions import db
 from app.models.task import ESTADO_POR_HACER, Tarea
+from app.models.user import ROL_CONTADOR
 from app.repositories import task_repository
 
 
@@ -87,6 +93,65 @@ def create_task(actor, data: dict) -> Tarea:
         raise ConflictError("No se pudo crear la tarea") from exc
 
     return tarea
+
+
+def list_tasks(actor, filtros: dict):
+    """HU_30. Listado paginado de tareas con filtros y alcance por rol (RG-12).
+
+    Dueño, Administrador y Coordinador ven todas las tareas. El Contador solo las
+    asignadas a él o creadas por él; por eso el filtro `responsable` se ignora para
+    el Contador (no puede consultar tareas de otros responsables).
+
+    Devuelve (items_listos_para_serializar, página) para conservar las reglas de
+    negocio (semáforo y alcance) fuera de la ruta.
+    """
+    es_contador = actor.rol == ROL_CONTADOR
+    responsable_id = None if es_contador else filtros.get("responsable")
+    scope_usuario_id = actor.id if es_contador else None
+
+    page = task_repository.search(
+        cliente_id=filtros.get("cliente"),
+        responsable_id=responsable_id,
+        estado=filtros.get("estado"),
+        prioridad=filtros.get("prioridad"),
+        categoria_id=filtros.get("categoria"),
+        fecha_limite_desde=filtros.get("fecha_limite_desde"),
+        fecha_limite_hasta=filtros.get("fecha_limite_hasta"),
+        semaforo=filtros.get("semaforo"),
+        scope_usuario_id=scope_usuario_id,
+        page=filtros["page"],
+        per_page=PER_PAGE,
+    )
+
+    detalles = task_repository.details_for([tarea.id for tarea in page.items])
+    hoy = today_mx()
+    items = [
+        _list_item(tarea, detalles.get(tarea.id, {}), hoy)
+        for tarea in page.items
+    ]
+    return items, page
+
+
+def _list_item(tarea: Tarea, detalle: dict, hoy: date) -> dict:
+    """Columnas de HU_30: título, cliente, categoría, responsable, prioridad,
+    estado, fecha límite y semáforo (calculado en el servidor)."""
+    return {
+        "id": tarea.id,
+        "titulo": tarea.titulo,
+        "cliente_id": tarea.cliente_id,
+        "cliente_nombre": detalle.get("cliente_nombre"),
+        "categoria_id": tarea.categoria_id,
+        "categoria_nombre": detalle.get("categoria_nombre"),
+        "categoria_padre_nombre": detalle.get("categoria_padre_nombre"),
+        "asignado_id": tarea.asignado_id,
+        "asignado_nombre": detalle.get("asignado_nombre"),
+        "prioridad": tarea.prioridad,
+        "estado": tarea.estado,
+        "fecha_limite": tarea.fecha_limite,
+        "hora_limite": tarea.hora_limite.strftime("%H:%M") if tarea.hora_limite else None,
+        "semaforo": calcular_semaforo(tarea.estado, tarea.fecha_limite, hoy),
+        "dias_restantes": dias_restantes(tarea.fecha_limite, hoy),
+    }
 
 
 def _notificar_asignacion(tarea: Tarea, actor) -> None:

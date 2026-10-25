@@ -1,11 +1,11 @@
-"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-33 y HU_41 (tablero Kanban)."""
+"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-33, HU_41-42 (tablero Kanban)."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
 from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
-from app.schemas.tarea_board_schema import TareaBoardSchema
+from app.schemas.tarea_board_schema import TareaBoardQuerySchema, TareaBoardSchema
 from app.schemas.tarea_detail_schema import TareaDetailSchema
 from app.schemas.tarea_list_schema import TareaListItemSchema, TareaListQuerySchema
 from app.schemas.tarea_schema import TareaCreateSchema, TareaUpdateSchema
@@ -30,13 +30,16 @@ def list_tasks():
 @bp.get("/board")
 @require_permission("task:board")
 def get_board():
-    """HU_41: Visualizar el tablero Kanban (los 4 roles, con alcance RG-12).
+    """HU_41-42: Visualizar y filtrar el tablero Kanban (los 4 roles, alcance RG-12).
 
     Devuelve las cuatro columnas fijas (Por hacer, En progreso, En revisión y
     Completado) con su contador y sus tarjetas. La columna Completado solo incluye
-    las tareas cerradas en los últimos 30 días.
+    las tareas cerradas en los últimos 30 días. Filtros opcionales y combinables:
+    cliente, responsable (no aplica al Contador), prioridad, fecha_limite_desde y
+    fecha_limite_hasta.
     """
-    tablero = task_service.get_kanban_board(g.current_user)
+    filtros = TareaBoardQuerySchema().load(request.args.to_dict())  # errores -> 422
+    tablero = task_service.get_kanban_board(g.current_user, filtros)
     return ok(TareaBoardSchema().dump(tablero))
 
 

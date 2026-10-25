@@ -389,6 +389,55 @@ def soft_delete(tarea: Tarea, actor_id: int, eliminado_en: datetime) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# HU_41: tablero Kanban
+# ---------------------------------------------------------------------------
+def board_tasks(*, scope_usuario_id: int | None, completadas_desde: datetime) -> list[Tarea]:
+    """Tareas visibles en el tablero (HU_41), sin las completadas antes del corte.
+
+    Las columnas abiertas traen todas las tareas no eliminadas; la columna Completado
+    solo las cerradas dentro de los últimos 30 días. El alcance del Contador se aplica
+    aquí (RG-12): asignadas a él o creadas por él.
+    """
+    stmt = select(Tarea).where(
+        Tarea.deleted_at.is_(None),
+        or_(
+            Tarea.estado != ESTADO_COMPLETADO,
+            Tarea.completada_en >= completadas_desde,
+        ),
+    )
+
+    if scope_usuario_id is not None:
+        stmt = stmt.where(
+            or_(
+                Tarea.asignado_id == scope_usuario_id,
+                Tarea.creador_id == scope_usuario_id,
+            )
+        )
+
+    stmt = stmt.order_by(Tarea.fecha_limite, Tarea.hora_limite, Tarea.id)
+    return list(db.session.execute(stmt).scalars())
+
+
+def time_totals_for(tarea_ids: list[int]) -> dict[int, int]:
+    """Minutos registrados por tarea (sin registros eliminados), para las tarjetas."""
+    if not tarea_ids:
+        return {}
+
+    stmt = (
+        select(RegistroTiempo.tarea_id, func.sum(RegistroTiempo.duracion_minutos))
+        .where(
+            RegistroTiempo.tarea_id.in_(tarea_ids),
+            RegistroTiempo.deleted_at.is_(None),
+        )
+        .group_by(RegistroTiempo.tarea_id)
+    )
+    return {
+        tarea_id: int(minutos)
+        for tarea_id, minutos in db.session.execute(stmt).all()
+    }
+
+
+# ---------------------------------------------------------------------------
 # HU_09 (desactivar colaborador)
 # ---------------------------------------------------------------------------
 def _open_by_assignee_stmt(asignado_id: int):

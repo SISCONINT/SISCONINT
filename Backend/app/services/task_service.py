@@ -1,5 +1,5 @@
-"""HU_29-33. Lógica de negocio de tareas."""
-from datetime import date, time
+"""HU_29-33, HU_41. Lógica de negocio de tareas."""
+from datetime import date, time, timedelta
 from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
@@ -11,7 +11,13 @@ from app.core.pagination import PER_PAGE
 from app.core.semaforo import calcular_semaforo, dias_restantes
 from app.extensions import db
 from app.models.notification import TIPO_CAMBIO_FECHA, TIPO_REASIGNACION, Notificacion
-from app.models.task import ESTADO_POR_HACER, Tarea
+from app.models.task import (
+    ESTADO_COMPLETADO,
+    ESTADO_EN_PROGRESO,
+    ESTADO_EN_REVISION,
+    ESTADO_POR_HACER,
+    Tarea,
+)
 from app.models.user import ROL_ADMINISTRADOR, ROL_CONTADOR, ROL_COORDINADOR
 from app.repositories import task_repository
 
@@ -550,3 +556,92 @@ def _notificar_asignacion(tarea: Tarea, actor) -> None:
             entidad_id=tarea.id,
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# HU_41: tablero Kanban
+# ---------------------------------------------------------------------------
+DIAS_COMPLETADO_KANBAN = 30
+COLUMNAS_KANBAN = (
+    (ESTADO_POR_HACER, "Por hacer"),
+    (ESTADO_EN_PROGRESO, "En progreso"),
+    (ESTADO_EN_REVISION, "En revisión"),
+    (ESTADO_COMPLETADO, "Completado"),
+)
+
+
+def get_kanban_board(actor) -> dict:
+    """HU_41. Tablero Kanban con las cuatro columnas fijas y su contador de tareas.
+
+    Dueño, Administrador y Coordinador ven todas las tareas; el Contador solo las
+    asignadas a él o creadas por él (RG-12). La columna Completado solo incluye las
+    tareas cerradas en los últimos 30 días (HU_41). El semáforo y el tiempo se
+    calculan en el servidor.
+
+    Dentro de las columnas abiertas las tarjetas van por fecha límite ascendente
+    (lo más urgente primero); en Completado, por fecha de cierre descendente.
+    """
+    es_contador = actor.rol == ROL_CONTADOR
+    tareas = task_repository.board_tasks(
+        scope_usuario_id=actor.id if es_contador else None,
+        completadas_desde=utcnow() - timedelta(days=DIAS_COMPLETADO_KANBAN),
+    )
+
+    detalles = task_repository.details_for([tarea.id for tarea in tareas])
+    minutos = task_repository.time_totals_for([tarea.id for tarea in tareas])
+    hoy = today_mx()
+
+    por_estado: dict[str, list[Tarea]] = {estado: [] for estado, _ in COLUMNAS_KANBAN}
+    for tarea in tareas:
+        por_estado[tarea.estado].append(tarea)
+
+    columnas = []
+    for estado, titulo in COLUMNAS_KANBAN:
+        grupo = por_estado[estado]
+        if estado == ESTADO_COMPLETADO:
+            grupo.sort(key=lambda tarea: (tarea.completada_en, tarea.id), reverse=True)
+
+        tarjetas = [
+            _kanban_card(tarea, detalles.get(tarea.id, {}), minutos.get(tarea.id, 0), hoy)
+            for tarea in grupo
+        ]
+        columnas.append(
+            {
+                "estado": estado,
+                "titulo": titulo,
+                "total": len(tarjetas),
+                "tareas": tarjetas,
+            }
+        )
+
+    return {"columnas": columnas, "total_tareas": len(tareas)}
+
+
+def _kanban_card(tarea: Tarea, detalle: dict, minutos: int, hoy: date) -> dict:
+    """Tarjeta de HU_41: cliente, título, responsable, prioridad, semáforo y tiempo."""
+    horas_registradas = round(minutos / 60, 2)
+    horas_estimadas = (
+        float(tarea.horas_estimadas) if tarea.horas_estimadas is not None else None
+    )
+    porcentaje_registrado = None
+    if horas_estimadas:
+        porcentaje_registrado = round(horas_registradas / horas_estimadas * 100, 1)
+
+    return {
+        "id": tarea.id,
+        "titulo": tarea.titulo,
+        "cliente_id": tarea.cliente_id,
+        "cliente_nombre": detalle.get("cliente_nombre"),
+        "asignado_id": tarea.asignado_id,
+        "asignado_nombre": detalle.get("asignado_nombre"),
+        "prioridad": tarea.prioridad,
+        "estado": tarea.estado,
+        "fecha_limite": tarea.fecha_limite,
+        "hora_limite": tarea.hora_limite.strftime("%H:%M") if tarea.hora_limite else None,
+        "semaforo": calcular_semaforo(tarea.estado, tarea.fecha_limite, hoy),
+        "minutos_registrados": minutos,
+        "horas_registradas": horas_registradas,
+        "horas_estimadas": horas_estimadas,
+        "porcentaje_registrado": porcentaje_registrado,
+        "completada_en": tarea.completada_en,
+    }

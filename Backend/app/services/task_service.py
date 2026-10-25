@@ -568,23 +568,38 @@ COLUMNAS_KANBAN = (
     (ESTADO_EN_REVISION, "En revisión"),
     (ESTADO_COMPLETADO, "Completado"),
 )
+MSG_SIN_RESULTADOS = "No hay tareas con los filtros seleccionados"
 
 
-def get_kanban_board(actor) -> dict:
-    """HU_41. Tablero Kanban con las cuatro columnas fijas y su contador de tareas.
+def get_kanban_board(actor, filtros: dict | None = None) -> dict:
+    """HU_41-42. Tablero Kanban con sus cuatro columnas fijas y filtros opcionales.
 
     Dueño, Administrador y Coordinador ven todas las tareas; el Contador solo las
     asignadas a él o creadas por él (RG-12). La columna Completado solo incluye las
     tareas cerradas en los últimos 30 días (HU_41). El semáforo y el tiempo se
     calculan en el servidor.
 
+    HU_42: los filtros (cliente, responsable, prioridad y rango de fecha límite) son
+    opcionales y se combinan. El filtro `responsable` se ignora para el Contador
+    porque su alcance ya está acotado por RG-12. Si hay filtros aplicados y ninguna
+    tarea cumple, el tablero viaja vacío con el mensaje «No hay tareas con los
+    filtros seleccionados».
+
     Dentro de las columnas abiertas las tarjetas van por fecha límite ascendente
     (lo más urgente primero); en Completado, por fecha de cierre descendente.
     """
+    filtros = filtros or {}
     es_contador = actor.rol == ROL_CONTADOR
+    responsable_id = None if es_contador else filtros.get("responsable")
+
     tareas = task_repository.board_tasks(
         scope_usuario_id=actor.id if es_contador else None,
         completadas_desde=utcnow() - timedelta(days=DIAS_COMPLETADO_KANBAN),
+        cliente_id=filtros.get("cliente"),
+        responsable_id=responsable_id,
+        prioridad=filtros.get("prioridad"),
+        fecha_limite_desde=filtros.get("fecha_limite_desde"),
+        fecha_limite_hasta=filtros.get("fecha_limite_hasta"),
     )
 
     detalles = task_repository.details_for([tarea.id for tarea in tareas])
@@ -614,7 +629,24 @@ def get_kanban_board(actor) -> dict:
             }
         )
 
-    return {"columnas": columnas, "total_tareas": len(tareas)}
+    tablero = {"columnas": columnas, "total_tareas": len(tareas)}
+    if not tareas and _hay_filtros(filtros, responsable_id):
+        tablero["mensaje"] = MSG_SIN_RESULTADOS
+    return tablero
+
+
+def _hay_filtros(filtros: dict, responsable_id: int | None) -> bool:
+    """¿Se aplicó al menos un filtro de HU_42? (el responsable del Contador se ignora)."""
+    return any(
+        valor is not None
+        for valor in (
+            filtros.get("cliente"),
+            responsable_id,
+            filtros.get("prioridad"),
+            filtros.get("fecha_limite_desde"),
+            filtros.get("fecha_limite_hasta"),
+        )
+    )
 
 
 def _kanban_card(tarea: Tarea, detalle: dict, minutos: int, hoy: date) -> dict:

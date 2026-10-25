@@ -1,4 +1,4 @@
-"""HU_29-33. Acceso a datos de tareas."""
+"""HU_29-33, HU_41-42. Acceso a datos de tareas."""
 from datetime import date, datetime
 
 from sqlalchemy import func, or_, select, update
@@ -391,12 +391,22 @@ def soft_delete(tarea: Tarea, actor_id: int, eliminado_en: datetime) -> dict:
 # ---------------------------------------------------------------------------
 # HU_41: tablero Kanban
 # ---------------------------------------------------------------------------
-def board_tasks(*, scope_usuario_id: int | None, completadas_desde: datetime) -> list[Tarea]:
-    """Tareas visibles en el tablero (HU_41), sin las completadas antes del corte.
+def board_tasks(
+    *,
+    scope_usuario_id: int | None,
+    completadas_desde: datetime,
+    cliente_id: int | None = None,
+    responsable_id: int | None = None,
+    prioridad: str | None = None,
+    fecha_limite_desde: date | None = None,
+    fecha_limite_hasta: date | None = None,
+) -> list[Tarea]:
+    """Tareas visibles en el tablero (HU_41-42), sin las completadas antes del corte.
 
     Las columnas abiertas traen todas las tareas no eliminadas; la columna Completado
-    solo las cerradas dentro de los últimos 30 días. El alcance del Contador se aplica
-    aquí (RG-12): asignadas a él o creadas por él.
+    solo las cerradas dentro de los últimos 30 días. Los filtros de HU_42 son
+    opcionales y se combinan. El alcance del Contador se aplica aquí (RG-12):
+    asignadas a él o creadas por él.
     """
     stmt = select(Tarea).where(
         Tarea.deleted_at.is_(None),
@@ -405,6 +415,21 @@ def board_tasks(*, scope_usuario_id: int | None, completadas_desde: datetime) ->
             Tarea.completada_en >= completadas_desde,
         ),
     )
+
+    if cliente_id is not None:
+        stmt = stmt.where(Tarea.cliente_id == cliente_id)
+
+    if responsable_id is not None:
+        stmt = stmt.where(Tarea.asignado_id == responsable_id)
+
+    if prioridad is not None:
+        stmt = stmt.where(Tarea.prioridad == prioridad)
+
+    if fecha_limite_desde is not None:
+        stmt = stmt.where(Tarea.fecha_limite >= fecha_limite_desde)
+
+    if fecha_limite_hasta is not None:
+        stmt = stmt.where(Tarea.fecha_limite <= fecha_limite_hasta)
 
     if scope_usuario_id is not None:
         stmt = stmt.where(

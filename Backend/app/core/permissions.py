@@ -25,6 +25,7 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "client:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_12
     "catalog:read": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_25
     "task:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),                 # HU_29
+    "task:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_30
 }
 
 # El Administrador no edita ni asigna Dueño/Administrador (HU_08).

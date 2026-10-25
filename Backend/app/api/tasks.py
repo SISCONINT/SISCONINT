@@ -1,13 +1,28 @@
-"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29 (POST)."""
+"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29 (POST) y HU_30 (GET)."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
+from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
+from app.schemas.tarea_list_schema import TareaListItemSchema, TareaListQuerySchema
 from app.schemas.tarea_schema import TareaCreateSchema
 from app.services import task_service
 
 bp = Blueprint("tasks", __name__, url_prefix="/tasks")
+
+
+@bp.get("")
+@require_permission("task:list")
+def list_tasks():
+    """HU_30: Consultar el listado de tareas (los 4 roles, con alcance RG-12).
+
+    Filtros opcionales: cliente, responsable, estado, prioridad, categoria,
+    fecha_limite_desde, fecha_limite_hasta, semaforo y page.
+    """
+    filtros = TareaListQuerySchema().load(request.args.to_dict())  # errores -> 422
+    items, page = task_service.list_tasks(g.current_user, filtros)
+    return ok(TareaListItemSchema(many=True).dump(items), meta=pagination_meta(page))
 
 
 @bp.post("")

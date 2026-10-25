@@ -1,4 +1,4 @@
-"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-32 (alta, listado, detalle y edición)."""
+"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-33 (alta, listado, detalle, edición y borrado)."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
@@ -54,6 +54,17 @@ def update_task(tarea_id: int):
     tarea = task_service.update_task(g.current_user, tarea_id, data)
     detalle = task_service.get_task_detail(g.current_user, tarea.id)
     return ok(TareaDetailSchema().dump(detalle))
+
+
+@bp.delete("/<int:tarea_id>")
+@require_permission("task:delete")
+def delete_task(tarea_id: int):
+    """HU_33: Eliminar tarea (Dueño, Administrador, Coordinador; el Contador solo las suyas).
+
+    La eliminación es lógica (RG-03) y arrastra a sus subtareas y comentarios. RG-14:
+    la confirmación que nombra la tarea se pide en la interfaz antes de esta llamada.
+    """
+    return ok(task_service.delete_task(g.current_user, tarea_id))
 
 
 @bp.post("")

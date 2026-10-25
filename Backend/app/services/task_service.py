@@ -1,11 +1,11 @@
-"""HU_29-32. Lógica de negocio de tareas."""
+"""HU_29-33. Lógica de negocio de tareas."""
 from datetime import date, time
 from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
 
 from app.core import audit
-from app.core.datetime_utils import today_mx
+from app.core.datetime_utils import today_mx, utcnow
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PER_PAGE
 from app.core.semaforo import calcular_semaforo, dias_restantes
@@ -451,6 +451,75 @@ def _notificar_cambio_fecha(tarea: Tarea, anterior: date, actor) -> None:
             entidad_id=tarea.id,
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# HU_33: eliminar tarea
+# ---------------------------------------------------------------------------
+MSG_TAREA_CON_TIEMPO = "No se puede eliminar la tarea porque tiene tiempo registrado"
+MSG_NO_ELIMINAR = "No se pudo eliminar la tarea"
+
+
+def delete_task(actor, tarea_id: int) -> dict:
+    """HU_33. Elimina lógicamente una tarea (RG-03) junto con sus subtareas y comentarios.
+
+    Solo se eliminan tareas sin tiempo registrado; si lo tienen se responde 409 con
+    el conteo y los minutos, y no se toca nada. El Contador solo elimina las tareas
+    que él creó (RG-12); en cualquier otro caso recibe el 403 genérico de RG-02.
+
+    RG-14: la confirmación explícita con el nombre de la tarea se pide en la
+    interfaz; la API únicamente recibe el id y devuelve el nombre para el aviso.
+    """
+    tarea = task_repository.get_by_id(tarea_id)
+    if tarea is None:
+        raise NotFoundError("Tarea no encontrada")
+
+    _assert_can_delete(actor, tarea)
+
+    tiempo = task_repository.time_entries_summary(tarea.id)
+    if tiempo["registros"]:
+        raise ConflictError(
+            MSG_TAREA_CON_TIEMPO,
+            extra={
+                "registros_tiempo": tiempo["registros"],
+                "minutos_registrados": tiempo["minutos"],
+            },
+        )
+
+    eliminado_en = utcnow()
+    try:
+        ocultos = task_repository.soft_delete(tarea, actor.id, eliminado_en)
+
+        audit.log(
+            actor.id,
+            entidad="tarea",
+            entidad_id=tarea.id,
+            accion=audit.ELIMINAR,
+            detalle={
+                "titulo": tarea.titulo,
+                "cliente_id": tarea.cliente_id,
+                "subtareas_ocultas": ocultos["subtareas"],
+                "comentarios_ocultos": ocultos["comentarios"],
+            },
+        )
+
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ConflictError(MSG_NO_ELIMINAR) from exc
+
+    return {
+        "id": tarea.id,
+        "titulo": tarea.titulo,
+        "eliminada_en": eliminado_en.isoformat(),
+        "mensaje": "Tarea eliminada",
+    }
+
+
+def _assert_can_delete(actor, tarea: Tarea) -> None:
+    """RG-12: el Contador solo elimina las tareas que él creó."""
+    if actor.rol == ROL_CONTADOR and tarea.creador_id != actor.id:
+        raise ForbiddenError()
 
 
 def _assert_can_view(actor, tarea: Tarea) -> None:

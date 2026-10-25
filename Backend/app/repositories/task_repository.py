@@ -1,7 +1,7 @@
-"""HU_29-32. Acceso a datos de tareas."""
-from datetime import date
+"""HU_29-33. Acceso a datos de tareas."""
+from datetime import date, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import aliased
 
 from app.core.datetime_utils import today_mx
@@ -341,6 +341,52 @@ def time_summary(tarea_id: int) -> list[dict]:
         }
         for colaborador_id, colaborador_nombre, minutos in db.session.execute(stmt).all()
     ]
+
+
+# ---------------------------------------------------------------------------
+# HU_33: eliminar tarea
+# ---------------------------------------------------------------------------
+def time_entries_summary(tarea_id: int) -> dict:
+    """Registros de tiempo no eliminados de la tarea: cuántos son y cuánto suman.
+
+    HU_33 solo permite eliminar tareas sin tiempo registrado, por eso el servicio
+    necesita el conteo; los minutos se devuelven para que la interfaz explique el
+    motivo sin consultar otra pantalla.
+    """
+    stmt = select(
+        func.count(RegistroTiempo.id),
+        func.coalesce(func.sum(RegistroTiempo.duracion_minutos), 0),
+    ).where(
+        RegistroTiempo.tarea_id == tarea_id,
+        RegistroTiempo.deleted_at.is_(None),
+    )
+    registros, minutos = db.session.execute(stmt).one()
+    return {"registros": int(registros), "minutos": int(minutos)}
+
+
+def soft_delete(tarea: Tarea, actor_id: int, eliminado_en: datetime) -> dict:
+    """RG-03: oculta la tarea y sus subtareas y comentarios sin borrar filas.
+
+    Devuelve cuántas subtareas y comentarios se ocultaron, para la bitácora (RG-13).
+    """
+    valores = {"deleted_at": eliminado_en, "updated_by": actor_id}
+
+    tarea.deleted_at = eliminado_en
+    tarea.updated_by = actor_id
+
+    subtareas = db.session.execute(
+        update(Subtarea)
+        .where(Subtarea.tarea_id == tarea.id, Subtarea.deleted_at.is_(None))
+        .values(**valores)
+    ).rowcount
+    comentarios = db.session.execute(
+        update(Comentario)
+        .where(Comentario.tarea_id == tarea.id, Comentario.deleted_at.is_(None))
+        .values(**valores)
+    ).rowcount
+
+    return {"subtareas": int(subtareas), "comentarios": int(comentarios)}
+
 
 # ---------------------------------------------------------------------------
 # HU_09 (desactivar colaborador)

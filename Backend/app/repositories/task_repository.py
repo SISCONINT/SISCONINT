@@ -1,4 +1,4 @@
-"""HU_29-30. Acceso a datos de tareas."""
+"""HU_29-31. Acceso a datos de tareas."""
 from datetime import date
 
 from sqlalchemy import func, or_, select
@@ -15,7 +15,14 @@ from app.core.semaforo import (
 from app.extensions import db
 from app.models.catalog import CategoriaProyecto
 from app.models.client import Cliente
-from app.models.task import ESTADO_COMPLETADO, HistorialEstadoTarea, Tarea
+from app.models.task import (
+    ESTADO_COMPLETADO,
+    Comentario,
+    HistorialEstadoTarea,
+    Subtarea,
+    Tarea,
+)
+from app.models.time_entry import RegistroTiempo
 from app.models.user import ESTATUS_ACTIVO, ROL_CONTADOR, Colaborador
 
 
@@ -173,15 +180,17 @@ def _filtrar_semaforo(stmt, semaforo: str):
 
 
 def details_for(tarea_ids: list[int]) -> dict[int, dict]:
-    """HU_30. Nombres para las columnas del listado, sin N+1.
+    """HU_30-31. Nombres relacionados para una o varias tareas, sin N+1.
 
-    Recibe los ids de una sola página (≤ 20) y devuelve
-    {tarea_id: {"cliente_nombre", "categoria_nombre", "categoria_padre_nombre", "asignado_nombre"}}.
+    Devuelve {tarea_id: {"cliente_nombre", "categoria_nombre", "categoria_padre_nombre",
+    "asignado_nombre", "creador_nombre", "completada_por_nombre"}}.
     """
     if not tarea_ids:
         return {}
 
     padre = aliased(CategoriaProyecto)
+    creador = aliased(Colaborador)
+    completada_por = aliased(Colaborador)
     stmt = (
         select(
             Tarea.id,
@@ -189,12 +198,16 @@ def details_for(tarea_ids: list[int]) -> dict[int, dict]:
             CategoriaProyecto.nombre,
             padre.nombre,
             Colaborador.nombre_completo,
+            creador.nombre_completo,
+            completada_por.nombre_completo,
         )
         .select_from(Tarea)
         .outerjoin(Cliente, Cliente.id == Tarea.cliente_id)
         .outerjoin(CategoriaProyecto, CategoriaProyecto.id == Tarea.categoria_id)
         .outerjoin(padre, padre.id == CategoriaProyecto.padre_id)
         .outerjoin(Colaborador, Colaborador.id == Tarea.asignado_id)
+        .outerjoin(creador, creador.id == Tarea.creador_id)
+        .outerjoin(completada_por, completada_por.id == Tarea.completada_por)
         .where(Tarea.id.in_(tarea_ids))
     )
 
@@ -204,10 +217,120 @@ def details_for(tarea_ids: list[int]) -> dict[int, dict]:
             "categoria_nombre": categoria_nombre,
             "categoria_padre_nombre": categoria_padre_nombre,
             "asignado_nombre": asignado_nombre,
+            "creador_nombre": creador_nombre,
+            "completada_por_nombre": completada_por_nombre,
         }
-        for tarea_id, cliente_nombre, categoria_nombre, categoria_padre_nombre, asignado_nombre
-        in db.session.execute(stmt).all()
+        for (
+            tarea_id,
+            cliente_nombre,
+            categoria_nombre,
+            categoria_padre_nombre,
+            asignado_nombre,
+            creador_nombre,
+            completada_por_nombre,
+        ) in db.session.execute(stmt).all()
     }
+
+
+# ---------------------------------------------------------------------------
+# HU_31: detalle de tarea
+# ---------------------------------------------------------------------------
+def get_by_id(tarea_id: int) -> Tarea | None:
+    """Tarea no eliminada (el servicio aplica el alcance del Contador, RG-12)."""
+    stmt = select(Tarea).where(Tarea.id == tarea_id, Tarea.deleted_at.is_(None))
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def list_subtareas(tarea_id: int) -> list[dict]:
+    """Subtareas no eliminadas, en orden de creación (para el avance completadas/total)."""
+    completada_por = aliased(Colaborador)
+    stmt = (
+        select(Subtarea, completada_por.nombre_completo)
+        .outerjoin(completada_por, completada_por.id == Subtarea.completada_por)
+        .where(Subtarea.tarea_id == tarea_id, Subtarea.deleted_at.is_(None))
+        .order_by(Subtarea.created_at, Subtarea.id)
+    )
+    return [
+        {
+            "id": subtarea.id,
+            "titulo": subtarea.titulo,
+            "completada": subtarea.completada,
+            "completada_por": subtarea.completada_por,
+            "completada_por_nombre": completada_por_nombre,
+            "completada_en": subtarea.completada_en,
+            "created_at": subtarea.created_at,
+        }
+        for subtarea, completada_por_nombre in db.session.execute(stmt).all()
+    ]
+
+
+def list_comentarios(tarea_id: int) -> list[dict]:
+    """Comentarios no eliminados, del más antiguo al más reciente."""
+    stmt = (
+        select(Comentario, Colaborador.nombre_completo)
+        .outerjoin(Colaborador, Colaborador.id == Comentario.autor_id)
+        .where(Comentario.tarea_id == tarea_id, Comentario.deleted_at.is_(None))
+        .order_by(Comentario.created_at, Comentario.id)
+    )
+    return [
+        {
+            "id": comentario.id,
+            "autor_id": comentario.autor_id,
+            "autor_nombre": autor_nombre,
+            "texto": comentario.texto,
+            "editado": comentario.editado,
+            "created_at": comentario.created_at,
+            "updated_at": comentario.updated_at,
+        }
+        for comentario, autor_nombre in db.session.execute(stmt).all()
+    ]
+
+
+def list_historial_estados(tarea_id: int) -> list[dict]:
+    """Historial de cambios de estado, del más antiguo al más reciente."""
+    stmt = (
+        select(HistorialEstadoTarea, Colaborador.nombre_completo)
+        .outerjoin(Colaborador, Colaborador.id == HistorialEstadoTarea.usuario_id)
+        .where(HistorialEstadoTarea.tarea_id == tarea_id)
+        .order_by(HistorialEstadoTarea.created_at, HistorialEstadoTarea.id)
+    )
+    return [
+        {
+            "id": historial.id,
+            "estado_anterior": historial.estado_anterior,
+            "estado_nuevo": historial.estado_nuevo,
+            "usuario_id": historial.usuario_id,
+            "usuario_nombre": usuario_nombre,
+            "created_at": historial.created_at,
+        }
+        for historial, usuario_nombre in db.session.execute(stmt).all()
+    ]
+
+
+def time_summary(tarea_id: int) -> list[dict]:
+    """Tiempo registrado por colaborador (solo registros no eliminados)."""
+    stmt = (
+        select(
+            RegistroTiempo.colaborador_id,
+            Colaborador.nombre_completo,
+            func.coalesce(func.sum(RegistroTiempo.duracion_minutos), 0),
+        )
+        .outerjoin(Colaborador, Colaborador.id == RegistroTiempo.colaborador_id)
+        .where(
+            RegistroTiempo.tarea_id == tarea_id,
+            RegistroTiempo.deleted_at.is_(None),
+        )
+        .group_by(RegistroTiempo.colaborador_id, Colaborador.nombre_completo)
+        .order_by(func.lower(Colaborador.nombre_completo), RegistroTiempo.colaborador_id)
+    )
+    return [
+        {
+            "colaborador_id": colaborador_id,
+            "colaborador_nombre": colaborador_nombre,
+            "minutos": int(minutos),
+        }
+        for colaborador_id, colaborador_nombre, minutos in db.session.execute(stmt).all()
+    ]
 
 # ---------------------------------------------------------------------------
 # HU_09 (desactivar colaborador)

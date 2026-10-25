@@ -1,5 +1,6 @@
-"""HU_29-30. Lógica de negocio de tareas."""
-from datetime import date
+"""HU_29-32. Lógica de negocio de tareas."""
+from datetime import date, time
+from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
 
@@ -9,8 +10,9 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError, Valida
 from app.core.pagination import PER_PAGE
 from app.core.semaforo import calcular_semaforo, dias_restantes
 from app.extensions import db
+from app.models.notification import TIPO_CAMBIO_FECHA, TIPO_REASIGNACION, Notificacion
 from app.models.task import ESTADO_POR_HACER, Tarea
-from app.models.user import ROL_CONTADOR
+from app.models.user import ROL_ADMINISTRADOR, ROL_CONTADOR, ROL_COORDINADOR
 from app.repositories import task_repository
 
 
@@ -247,6 +249,210 @@ def get_task_detail(actor, tarea_id: int) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# HU_32: edición de tarea
+# ---------------------------------------------------------------------------
+_CAMPOS_EDITABLES = (
+    "titulo",
+    "descripcion",
+    "cliente_id",
+    "categoria_id",
+    "asignado_id",
+    "fecha_limite",
+    "hora_limite",
+    "prioridad",
+    "horas_estimadas",
+    "notificar_cliente",
+)
+
+MSG_FECHA_PASADA = "La fecha límite debe ser hoy o posterior"
+MSG_TAREA_DE_ADMINISTRACION = (
+    "No puedes editar tareas creadas por Administración o Coordinación"
+)
+MSG_NO_ACTUALIZAR = "No se pudo actualizar la tarea"
+
+
+def update_task(actor, tarea_id: int, data: dict) -> Tarea:
+    """HU_32. Actualiza los datos de una tarea; el estado no se edita aquí.
+
+    Solo se aplican los campos enviados. Las validaciones del alta se aplican a los
+    valores que cambian: si un campo no cambia se conserva tal cual, para poder
+    editar una tarea cuya fecha ya venció o cuyo cliente se pausó después del alta.
+
+    Si cambia el contador asignado se notifica al nuevo y al anterior (el aviso de
+    reasignación ya incluye la nueva fecha); si solo cambia la fecha límite se
+    notifica al asignado. Los registros de tiempo ya hechos no se tocan: siguen
+    atribuidos a quien los registró.
+    """
+    tarea = task_repository.get_by_id(tarea_id)
+    if tarea is None:
+        raise NotFoundError("Tarea no encontrada")
+
+    _assert_can_edit(actor, tarea)
+
+    cambios = {
+        campo: data[campo]
+        for campo in _CAMPOS_EDITABLES
+        if campo in data and data[campo] != getattr(tarea, campo)
+    }
+    if not cambios:
+        return tarea
+
+    _validar_cambios(cambios)
+
+    anteriores = {campo: getattr(tarea, campo) for campo in cambios}
+    anterior_asignado_id = tarea.asignado_id
+    anterior_fecha_limite = tarea.fecha_limite
+
+    for campo, valor in cambios.items():
+        setattr(tarea, campo, valor)
+    tarea.updated_by = actor.id
+
+    try:
+        audit.log(
+            actor.id,
+            entidad="tarea",
+            entidad_id=tarea.id,
+            accion=audit.MODIFICAR,
+            detalle={
+                campo: {
+                    "antes": _valor_auditable(anteriores[campo]),
+                    "despues": _valor_auditable(valor),
+                }
+                for campo, valor in cambios.items()
+            },
+        )
+
+        if "asignado_id" in cambios:
+            _notificar_reasignacion(tarea, anterior_asignado_id, actor)
+        elif "fecha_limite" in cambios:
+            _notificar_cambio_fecha(tarea, anterior_fecha_limite, actor)
+
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ConflictError(MSG_NO_ACTUALIZAR) from exc
+
+    return tarea
+
+
+def _validar_cambios(cambios: dict) -> None:
+    """Validaciones de HU_29 que dependen de la BD, aplicadas a los campos que cambian."""
+    if "fecha_limite" in cambios and cambios["fecha_limite"] < today_mx():
+        raise ValidationAppError(
+            MSG_FECHA_PASADA, fields={"fecha_limite": [MSG_FECHA_PASADA]}
+        )
+
+    if "cliente_id" in cambios:
+        cliente = task_repository.get_cliente(cambios["cliente_id"])
+        if cliente is None:
+            raise NotFoundError(
+                "El cliente no existe", fields={"cliente_id": ["No existe"]}
+            )
+        if cliente.estatus != "ACTIVO":
+            raise ValidationAppError(
+                "No se pueden asignar tareas a clientes Pausados o en Baja",
+                fields={"cliente_id": ["El cliente no está Activo"]},
+            )
+
+    if "categoria_id" in cambios:
+        categoria = task_repository.get_categoria(cambios["categoria_id"])
+        if categoria is None:
+            raise NotFoundError(
+                "La categoría no existe", fields={"categoria_id": ["No existe"]}
+            )
+        if not categoria.activa:
+            raise ValidationAppError(
+                "La categoría está inactiva",
+                fields={"categoria_id": ["Selecciona una categoría activa"]},
+            )
+
+    if "asignado_id" in cambios:
+        contador = task_repository.get_contador_activo(cambios["asignado_id"])
+        if contador is None:
+            raise ValidationAppError(
+                "El contador asignado no es válido",
+                fields={"asignado_id": ["Debe ser un Contador Activo"]},
+            )
+
+
+def _valor_auditable(valor):
+    """Convierte fechas, horas y decimales a tipos que la bitácora guarda como JSON."""
+    if isinstance(valor, (date, time)):
+        return valor.isoformat()
+    if isinstance(valor, Decimal):
+        return float(valor)
+    return valor
+
+
+def _assert_can_edit(actor, tarea: Tarea) -> None:
+    """HU_32 + RG-12: el Contador solo edita las tareas que él creó.
+
+    Primero se exige que pueda verla (si no, 403 genérico de RG-02, sin revelar
+    datos del registro). Si la ve pero la creó Administración o Coordinación, HU_32
+    pide el mensaje específico; para cualquier otro creador (Dueño u otro Contador)
+    se responde el mensaje genérico.
+    """
+    if actor.rol != ROL_CONTADOR or tarea.creador_id == actor.id:
+        return
+
+    if tarea.asignado_id != actor.id:
+        raise ForbiddenError()
+
+    rol_creador = task_repository.get_rol_colaborador(tarea.creador_id)
+    if rol_creador in (ROL_ADMINISTRADOR, ROL_COORDINADOR):
+        raise ForbiddenError(MSG_TAREA_DE_ADMINISTRACION)
+
+    raise ForbiddenError()
+
+
+def _notificar_reasignacion(tarea: Tarea, anterior_id: int, actor) -> None:
+    """HU_32: avisa al contador nuevo y al anterior (nunca al propio actor)."""
+    if tarea.asignado_id != actor.id:
+        db.session.add(
+            Notificacion(
+                usuario_id=tarea.asignado_id,
+                tipo=TIPO_REASIGNACION,
+                titulo="Tarea reasignada a ti",
+                mensaje=f"{tarea.titulo} — vence {tarea.fecha_limite.isoformat()}",
+                entidad_tipo="TAREA",
+                entidad_id=tarea.id,
+            )
+        )
+
+    if anterior_id != actor.id:
+        db.session.add(
+            Notificacion(
+                usuario_id=anterior_id,
+                tipo=TIPO_REASIGNACION,
+                titulo="Tarea reasignada",
+                mensaje=f"{tarea.titulo} ya no está asignada a ti",
+                entidad_tipo="TAREA",
+                entidad_id=tarea.id,
+            )
+        )
+
+
+def _notificar_cambio_fecha(tarea: Tarea, anterior: date, actor) -> None:
+    """HU_32: avisa al contador asignado que cambió la fecha límite."""
+    if tarea.asignado_id == actor.id:
+        return
+
+    db.session.add(
+        Notificacion(
+            usuario_id=tarea.asignado_id,
+            tipo=TIPO_CAMBIO_FECHA,
+            titulo="Cambió la fecha límite",
+            mensaje=(
+                f"{tarea.titulo} — nueva fecha {tarea.fecha_limite.isoformat()} "
+                f"(antes {anterior.isoformat()})"
+            ),
+            entidad_tipo="TAREA",
+            entidad_id=tarea.id,
+        )
+    )
+
+
 def _assert_can_view(actor, tarea: Tarea) -> None:
     """RG-12: el Contador solo abre tareas asignadas a él o creadas por él."""
     if actor.rol != ROL_CONTADOR:
@@ -264,8 +470,6 @@ def _notificar_asignacion(tarea: Tarea, actor) -> None:
     """
     if tarea.asignado_id == actor.id:
         return
-
-    from app.models.notification import Notificacion
 
     db.session.add(
         Notificacion(

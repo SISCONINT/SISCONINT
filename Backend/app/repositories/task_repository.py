@@ -1,4 +1,4 @@
-"""HU_29-31. Acceso a datos de tareas."""
+"""HU_29-32. Acceso a datos de tareas."""
 from datetime import date
 
 from sqlalchemy import func, or_, select
@@ -47,6 +47,16 @@ def get_contador_activo(colaborador_id: int) -> Colaborador | None:
         Colaborador.rol == ROL_CONTADOR,
         Colaborador.estatus == ESTATUS_ACTIVO,
         Colaborador.deleted_at.is_(None),
+    )
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def get_rol_colaborador(colaborador_id: int | None) -> str | None:
+    """Rol de un colaborador no eliminado (HU_32: permisos de edición del Contador)."""
+    if colaborador_id is None:
+        return None
+    stmt = select(Colaborador.rol).where(
+        Colaborador.id == colaborador_id, Colaborador.deleted_at.is_(None)
     )
     return db.session.execute(stmt).scalar_one_or_none()
 

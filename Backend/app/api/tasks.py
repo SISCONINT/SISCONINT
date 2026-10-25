@@ -1,4 +1,4 @@
-"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29 (POST), HU_30 (GET) y HU_31 (GET detalle)."""
+"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-32 (alta, listado, detalle y edición)."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
@@ -7,7 +7,7 @@ from app.core.permissions import require_permission
 from app.core.responses import ok
 from app.schemas.tarea_detail_schema import TareaDetailSchema
 from app.schemas.tarea_list_schema import TareaListItemSchema, TareaListQuerySchema
-from app.schemas.tarea_schema import TareaCreateSchema
+from app.schemas.tarea_schema import TareaCreateSchema, TareaUpdateSchema
 from app.services import task_service
 
 bp = Blueprint("tasks", __name__, url_prefix="/tasks")
@@ -35,6 +35,24 @@ def get_task(tarea_id: int):
     historial de estados y tiempo registrado total y por colaborador.
     """
     detalle = task_service.get_task_detail(g.current_user, tarea_id)
+    return ok(TareaDetailSchema().dump(detalle))
+
+
+@bp.put("/<int:tarea_id>")
+@require_permission("task:edit")
+def update_task(tarea_id: int):
+    """HU_32: Editar tarea (Dueño, Administrador, Coordinador; el Contador solo las suyas).
+
+    Recibe los campos modificados (los mismos del alta, sin `estado`) y devuelve la
+    tarea actualizada con el mismo contrato del detalle.
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = TareaUpdateSchema().load(payload)  # errores -> 422
+    tarea = task_service.update_task(g.current_user, tarea_id, data)
+    detalle = task_service.get_task_detail(g.current_user, tarea.id)
     return ok(TareaDetailSchema().dump(detalle))
 
 

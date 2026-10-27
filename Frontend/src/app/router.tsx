@@ -45,6 +45,24 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "clientes",
+            element: <ClientsListPage />,
+          },
+          {
+            path: "clientes/nuevo",
+            element: (
+              <RequireRole roles={[ROLES.DUENO, ROLES.ADMINISTRADOR]}>
+                <CreateClientPage />
+              </RequireRole>
+            ),
+          },
+          {
+            path: "clientes/:id",
+            element: <ClientFilePage />,
+          },
+          ...NAV_SECTIONS.flatMap((s) =>
+            s.items
+              .filter((i) => i.path !== "/clientes")
             path: "colaboradores/:id",
             element: (
               <RequireRole roles={ADMIN_ROLES}>

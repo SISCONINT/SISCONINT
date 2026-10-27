@@ -1,10 +1,10 @@
 import { NavLink } from "react-router-dom";
 import { Landmark, Settings, LifeBuoy, LogOut } from "lucide-react";
 import clsx from "clsx";
-import { useAuthStore } from "../../shared/auth/authStore";
-import { getNavForRole } from "../../shared/auth/permissions";
-import { ROLE_LABELS } from "../../shared/constants/roles";
-import { useLogout } from "../../features/auth/api/useLogout";
+import { useAuthStore } from "@/shared/auth/authStore";
+import { getNavForRole } from "@//shared/auth/permissions";
+import { ROLE_LABELS } from "@//shared/constants/roles";
+import { useLogout } from "@/features/auth/api/useLogout";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   clsx(
@@ -24,7 +24,7 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Menú principal"
-      className="sticky top-0 flex h-screen flex-col gap-4 overflow-y-auto bg-navy-900 px-3 py-4 text-on-dark"
+      className="sticky top-0 flex h-dvh w-16 shrink-0 flex-col gap-4 overflow-y-auto bg-navy-900 px-3 py-4 text-on-dark lg:w-64"
     >
       {/* Marca */}
       <div className="flex items-center justify-center gap-2.5 px-1.5 py-1 lg:justify-start">

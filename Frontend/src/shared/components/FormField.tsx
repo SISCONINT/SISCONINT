@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
 
-export const inputClass =
-  "w-full rounded-lg bg-field py-3 pl-10 pr-10 text-sm text-ink placeholder:text-muted/70 " +
+const base =
+  "w-full rounded-lg bg-field py-3 text-sm text-ink placeholder:text-muted/70 " +
   "outline-none ring-1 ring-transparent transition focus:ring-gold-500 " +
   "aria-[invalid=true]:ring-danger disabled:opacity-60";
+
+export const inputClass = `${base} pl-10 pr-10`;   // con ícono (login)
+export const plainInputClass = `${base} px-3.5`;   // sin ícono
 
 interface Props {
   label: string;

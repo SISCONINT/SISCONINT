@@ -58,3 +58,10 @@ export function getNavForRole(role: Role): NavSection[] {
     .map((s) => ({ ...s, items: s.items.filter((i) => i.roles.includes(role)) }))
     .filter((s) => s.items.length > 0);
 }
+
+export const ASSIGNABLE_ROLES: Record<Role,Role[]> = {
+  [DUENO] : [DUENO, ADMINISTRADOR, COORDINADOR, CONTADOR],
+  [ADMINISTRADOR]: [COORDINADOR, CONTADOR],
+  [COORDINADOR]: [],
+  [CONTADOR]: [],
+}

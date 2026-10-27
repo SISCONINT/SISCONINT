@@ -1,7 +1,9 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { MainLayout } from "./layouts/MainLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
-import { LoginPage } from "@/features/auth";
+import { LoginPage, ActivateAccountPage } from "@/features/auth";
+import { CreateUserPage } from "@/features/users"
+import { ROLES } from "@/shared/constants/roles"
 import { RequireAuth, GuestOnly } from "@/shared/auth/RequireAuth";
 import { RequireRole } from "@/shared/auth/RequireRole";
 import { NAV_SECTIONS } from "@/shared/auth/permissions";
@@ -23,6 +25,14 @@ export const router = createBrowserRouter([
         element: <MainLayout />,
         children: [
           { index: true, element: <Navigate to="/dashboard" replace /> },
+          {
+            path: "colaboradores/nuevo",
+            element: (
+              <RequireRole roles={[ROLES.DUENO, ROLES.ADMINISTRADOR]}>
+                <CreateUserPage />
+              </RequireRole>
+            ),
+          },
           ...NAV_SECTIONS.flatMap((s) =>
             s.items.map((i) => ({
               path: i.path.slice(1),
@@ -36,5 +46,9 @@ export const router = createBrowserRouter([
         ],
       },
     ],
+  },
+  {
+    element: <AuthLayout />,
+    children: [{ path: "/activar", element: <ActivateAccountPage /> }],
   },
 ]);

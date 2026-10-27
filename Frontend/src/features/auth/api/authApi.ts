@@ -37,4 +37,12 @@ export const authApi = {
     throw e;
   }
   },
+
+  activate: async (p: { token: string; password: string; password_confirm: string }) => {
+    await api.post("/auth/activate", {
+      token: p.token,
+      password: p.password,
+      password_confirm: p.password_confirm,
+    });
+  },
 };

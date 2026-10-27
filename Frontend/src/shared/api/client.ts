@@ -1,7 +1,6 @@
 import axios, { AxiosError } from "axios";
 import {ApiError, type ApiErrorBody} from "./types";
 import { useAuthStore } from "../../shared/auth/authStore";
-import { config } from "zod";
 
 export const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL ?? "/api/v1",
@@ -39,6 +38,12 @@ api.interceptors.response.use(
       useAuthStore.getState().clear();
     }
 
+    const KNOWN_KEYS = ["code", "message", "fields", "retry_after"];
+    const extra: Record<string, unknown> = {};
+    for (const key of Object.keys(body ?? {})) {
+      if (!KNOWN_KEYS.includes(key)) extra[key] = (body as Record<string, unknown>)[key];
+    }
+
     return Promise.reject(
       new ApiError(
         status,
@@ -46,6 +51,7 @@ api.interceptors.response.use(
         body?.message ?? "No se pudo conectar con el servidor",
         body?.fields,
         body?.retry_after ?? (Number.isFinite(headerRetry) ? headerRetry : undefined),
+        Object.keys(extra).length > 0 ? extra : undefined,
       ),
     );
   },

@@ -24,7 +24,7 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Menú principal"
-      className="sticky top-0 flex h-screen flex-col gap-4 overflow-y-auto bg-navy-900 px-3 py-4 text-on-dark"
+      className="sticky top-0 flex h-screen shrink-0 flex-col gap-4 overflow-y-auto bg-navy-900 px-3 py-4 text-on-dark"
     >
       {/* Marca */}
       <div className="flex items-center justify-center gap-2.5 px-1.5 py-1 lg:justify-start">

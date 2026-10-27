@@ -3,6 +3,7 @@ import { MainLayout } from "./layouts/MainLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { LoginPage, ActivateAccountPage } from "@/features/auth";
 import { CreateUserPage } from "@/features/users"
+import { ClientsListPage, CreateClientPage, ClientFilePage } from "@/features/clients";
 import { ROLES } from "@/shared/constants/roles"
 import { RequireAuth, GuestOnly } from "@/shared/auth/RequireAuth";
 import { RequireRole } from "@/shared/auth/RequireRole";
@@ -33,15 +34,33 @@ export const router = createBrowserRouter([
               </RequireRole>
             ),
           },
+          {
+            path: "clientes",
+            element: <ClientsListPage />,
+          },
+          {
+            path: "clientes/nuevo",
+            element: (
+              <RequireRole roles={[ROLES.DUENO, ROLES.ADMINISTRADOR]}>
+                <CreateClientPage />
+              </RequireRole>
+            ),
+          },
+          {
+            path: "clientes/:id",
+            element: <ClientFilePage />,
+          },
           ...NAV_SECTIONS.flatMap((s) =>
-            s.items.map((i) => ({
-              path: i.path.slice(1),
-              element: (
-                <RequireRole roles={i.roles}>
-                  <Placeholder title={i.label} />
-                </RequireRole>
-              ),
-            })),
+            s.items
+              .filter((i) => i.path !== "/clientes")
+              .map((i) => ({
+                path: i.path.slice(1),
+                element: (
+                  <RequireRole roles={i.roles}>
+                    <Placeholder title={i.label} />
+                  </RequireRole>
+                ),
+              })),
           ),
         ],
       },

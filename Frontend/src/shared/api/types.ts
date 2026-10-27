@@ -1,6 +1,6 @@
 export interface ApiResponse<T>{
     data: T;
-    meta?: {page: number; per_page: number, total: number}
+    meta?: {page: number; per_page: number; total: number; pages?: number}
 }
 
 export interface ApiErrorBody{

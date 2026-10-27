@@ -15,7 +15,7 @@ export function TextField({label, required, hint, error, registration, ...rest}:
         <FormField label={label} htmlFor={registration.name} required={required}
         hint={hint} error={error?.message}>
             <input id={registration.name} className={plainInputClass}
-            aria-invalid={!!error} {...rest} {...registration}/>
+            aria-invalid={!!error} {...registration} {...rest}/>
         </FormField>
     );
 }

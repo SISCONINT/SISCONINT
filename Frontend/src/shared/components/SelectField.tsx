@@ -5,6 +5,7 @@ import { FormField, plainInputClass } from './FormField';
 interface Props extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "name">{
     label:string;
     required?: boolean;
+    hint?: string;
     error?: FieldError;
     registration: UseFormRegisterReturn;
     options: { value: string; label: string }[];
@@ -12,13 +13,13 @@ interface Props extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "name">{
 }
 
 export function SelectField({
-    label, required, error, registration, options, placeholder = "Selecciona...", ...rest
+    label, required, hint, error, registration, options, placeholder = "Selecciona...", ...rest
 }: Props){
     return(
         <FormField label={label} htmlFor={registration.name} required={required}
-        error={error?.message}>
+        hint={hint} error={error?.message}>
             <select id={registration.name} className={plainInputClass}
-            aria-invalid={!!error} {...rest} {...registration}>
+            aria-invalid={!!error} {...registration} {...rest}>
                 <option value="">{placeholder}</option>
                 {options.map((o)=>(
                     <option value={o.value} key={o.value}>

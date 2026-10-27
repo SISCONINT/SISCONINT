@@ -32,3 +32,14 @@ export class ApiError extends Error {
     this.retryAfter = retryAfter;
   }
 }
+
+export interface PageMeta {
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface Paginated<T> {
+  data: T[];
+  meta: PageMeta;
+}

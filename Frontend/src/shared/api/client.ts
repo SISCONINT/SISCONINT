@@ -1,7 +1,7 @@
 import axios, { AxiosError } from "axios";
 import {ApiError, type ApiErrorBody} from "./types";
 import { useAuthStore } from "../../shared/auth/authStore";
-import { config } from "zod";
+
 
 export const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL ?? "/api/v1",

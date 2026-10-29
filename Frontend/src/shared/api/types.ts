@@ -1,6 +1,6 @@
 export interface ApiResponse<T>{
     data: T;
-    meta?: {page: number; per_page: number, total: number}
+    meta?: {page: number; per_page: number; total: number; pages?: number}
 }
 
 export interface ApiErrorBody{
@@ -31,4 +31,15 @@ export class ApiError extends Error {
     this.fields = fields;
     this.retryAfter = retryAfter;
   }
+}
+
+export interface PageMeta {
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface Paginated<T> {
+  data: T[];
+  meta: PageMeta;
 }

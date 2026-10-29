@@ -64,4 +64,13 @@ export const ASSIGNABLE_ROLES: Record<Role,Role[]> = {
   [ADMINISTRADOR]: [COORDINADOR, CONTADOR],
   [COORDINADOR]: [],
   [CONTADOR]: [],
+};
+
+/** El Administrador no edita a Dueño ni a otro Administrador (HU_08). */
+const ROLES_PROTECTED_FROM_ADMIN: Role[] = [DUENO, ADMINISTRADOR];
+
+export function canEditCollaborator(actorRol: Role, targetRol: Role): boolean {
+  if (actorRol === DUENO) return true;
+  if (actorRol === ADMINISTRADOR) return !ROLES_PROTECTED_FROM_ADMIN.includes(targetRol);
+  return false;
 }

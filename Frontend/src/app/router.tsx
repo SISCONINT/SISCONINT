@@ -2,8 +2,9 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { MainLayout } from "./layouts/MainLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { LoginPage, ActivateAccountPage } from "@/features/auth";
-import { CreateUserPage, EditUserPage, UsersListPage } from "@/features/users"
-import { ROLES } from "@/shared/constants/roles"
+import { CreateUserPage, EditUserPage, UsersListPage } from "@/features/users";
+import { ClientsListPage, CreateClientPage, ClientFilePage } from "@/features/clients";
+import { ROLES } from "@/shared/constants/roles";
 import { RequireAuth, GuestOnly } from "@/shared/auth/RequireAuth";
 import { RequireRole } from "@/shared/auth/RequireRole";
 import { NAV_SECTIONS } from "@/shared/auth/permissions";
@@ -13,7 +14,7 @@ const Placeholder = ({ title }: { title: string }) => (
 );
 
 const ADMIN_ROLES = [ROLES.DUENO, ROLES.ADMINISTRADOR];
-const IMPLEMENTED_PATHS = ["/colaboradores"];
+const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes"];
 
 export const router = createBrowserRouter([
   {
@@ -45,6 +46,14 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "colaboradores/:id",
+            element: (
+              <RequireRole roles={ADMIN_ROLES}>
+                <EditUserPage />
+              </RequireRole>
+            ),
+          },
+          {
             path: "clientes",
             element: <ClientsListPage />,
           },
@@ -59,16 +68,6 @@ export const router = createBrowserRouter([
           {
             path: "clientes/:id",
             element: <ClientFilePage />,
-          },
-          ...NAV_SECTIONS.flatMap((s) =>
-            s.items
-              .filter((i) => i.path !== "/clientes")
-            path: "colaboradores/:id",
-            element: (
-              <RequireRole roles={ADMIN_ROLES}>
-                <EditUserPage />
-              </RequireRole>
-            ),
           },
           ...NAV_SECTIONS.flatMap((s) =>
             s.items

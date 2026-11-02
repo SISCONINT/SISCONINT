@@ -825,3 +825,55 @@ def _avisar_cliente_conclusion(tarea: Tarea, anterior: str, actor) -> None:
     tarea.cliente_notificado = True
     tarea.updated_by = actor.id
     db.session.commit()
+
+
+# ---------------------------------------------------------------------------
+# HU_64: panel de alertas de vencimiento
+# ---------------------------------------------------------------------------
+def get_alerts_panel(filtros: dict):
+    """HU_64. Panel de tareas en Rojo y Amarillo con sus conteos.
+
+    Solo lo consultan Dueño, Administrador y Coordinador (el permiso lo valida la
+    ruta). Los conteos respetan los filtros de cliente y responsable; el filtro de
+    color acota únicamente el listado paginado, que va de Rojo a Amarillo y por
+    fecha límite ascendente.
+    """
+    page = task_repository.alert_tasks(
+        cliente_id=filtros.get("cliente"),
+        responsable_id=filtros.get("responsable"),
+        color=filtros.get("color"),
+        page=filtros["page"],
+        per_page=PER_PAGE,
+    )
+    conteos = task_repository.alert_counts(
+        cliente_id=filtros.get("cliente"),
+        responsable_id=filtros.get("responsable"),
+    )
+
+    detalles = task_repository.details_for([tarea.id for tarea in page.items])
+    hoy = today_mx()
+    tareas = [
+        _alert_item(tarea, detalles.get(tarea.id, {}), hoy)
+        for tarea in page.items
+    ]
+    return {"conteos": conteos, "tareas": tareas}, page
+
+
+def _alert_item(tarea: Tarea, detalle: dict, hoy: date) -> dict:
+    """Fila de HU_64: cliente, tarea, responsable, fecha límite y días de atraso."""
+    dias = dias_restantes(tarea.fecha_limite, hoy)
+    return {
+        "id": tarea.id,
+        "titulo": tarea.titulo,
+        "cliente_id": tarea.cliente_id,
+        "cliente_nombre": detalle.get("cliente_nombre"),
+        "asignado_id": tarea.asignado_id,
+        "asignado_nombre": detalle.get("asignado_nombre"),
+        "prioridad": tarea.prioridad,
+        "estado": tarea.estado,
+        "fecha_limite": tarea.fecha_limite,
+        "hora_limite": tarea.hora_limite.strftime("%H:%M") if tarea.hora_limite else None,
+        "semaforo": calcular_semaforo(tarea.estado, tarea.fecha_limite, hoy),
+        "dias_restantes": dias,
+        "dias_atraso": max(0, -dias),
+    }

@@ -1,10 +1,11 @@
-"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-33, HU_41-43 (tablero Kanban)."""
+"""Módulo 5: Tareas. Prefijo /api/v1/tasks. HU_29-33, HU_41-43 y HU_63-64."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
 from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
+from app.schemas.tarea_alerta_schema import TareaAlertaQuerySchema, TareaAlertasSchema
 from app.schemas.tarea_board_schema import TareaBoardQuerySchema, TareaBoardSchema
 from app.schemas.tarea_detail_schema import TareaDetailSchema
 from app.schemas.tarea_estado_schema import TareaEstadoSchema
@@ -42,6 +43,20 @@ def get_board():
     filtros = TareaBoardQuerySchema().load(request.args.to_dict())  # errores -> 422
     tablero = task_service.get_kanban_board(g.current_user, filtros)
     return ok(TareaBoardSchema().dump(tablero))
+
+
+@bp.get("/alerts")
+@require_permission("task:alerts")
+def get_alerts():
+    """HU_64: Consultar el panel de alertas de vencimiento (Dueño, Admin, Coordinador).
+
+    Devuelve los conteos de tareas en Rojo y Amarillo y el listado paginado, de Rojo
+    a Amarillo y por fecha límite. Filtros opcionales: cliente, responsable y color
+    (ROJO o AMARILLO). Los conteos respetan cliente y responsable, no el color.
+    """
+    filtros = TareaAlertaQuerySchema().load(request.args.to_dict())  # errores -> 422
+    panel, page = task_service.get_alerts_panel(filtros)
+    return ok(TareaAlertasSchema().dump(panel), meta=pagination_meta(page))
 
 
 @bp.get("/<int:tarea_id>")

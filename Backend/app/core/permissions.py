@@ -42,6 +42,8 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "notification:list": ROLES_TODOS,                                                          # HU_71
     "notification:read": ROLES_TODOS,                                                          # HU_72
     "notification:read-all": ROLES_TODOS,                                                      # HU_73
+    "dashboard:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),  # HU_79-84
+    "dashboard:personal": frozenset({ROL_CONTADOR}),  # HU_85
 }
 
 # El Administrador no edita ni asigna Dueño/Administrador (HU_08).

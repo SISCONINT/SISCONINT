@@ -15,6 +15,9 @@ from app.models.user import (
     Colaborador,
 )
 
+# Todos los roles consultan y marcan únicamente sus propias notificaciones (HU_71-73).
+ROLES_TODOS = frozenset(ROLES)
+
 PERMISSIONS: dict[str, frozenset[str]] = {
     "user:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                  # HU_05
     "user:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                    # HU_06
@@ -36,6 +39,9 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "time:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_51
     "time:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_52
     "time:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_53
+    "notification:list": ROLES_TODOS,                                                          # HU_71
+    "notification:read": ROLES_TODOS,                                                          # HU_72
+    "notification:read-all": ROLES_TODOS,                                                      # HU_73
 }
 
 # El Administrador no edita ni asigna Dueño/Administrador (HU_08).

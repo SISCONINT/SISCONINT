@@ -576,6 +576,23 @@ def alert_tasks(
 
 
 # ---------------------------------------------------------------------------
+# HU_66: recordatorio de vencimiento
+# ---------------------------------------------------------------------------
+def tasks_due_on(fecha: date) -> list[Tarea]:
+    """Tareas no completadas ni eliminadas cuya fecha límite es `fecha` (HU_66)."""
+    stmt = (
+        select(Tarea)
+        .where(
+            Tarea.deleted_at.is_(None),
+            Tarea.estado != ESTADO_COMPLETADO,
+            Tarea.fecha_limite == fecha,
+        )
+        .order_by(Tarea.id)
+    )
+    return list(db.session.execute(stmt).scalars())
+
+
+# ---------------------------------------------------------------------------
 # HU_09 (desactivar colaborador)
 # ---------------------------------------------------------------------------
 def _open_by_assignee_stmt(asignado_id: int):

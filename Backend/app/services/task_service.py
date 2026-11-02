@@ -11,6 +11,7 @@ from app.core.pagination import PER_PAGE
 from app.core.semaforo import calcular_semaforo, dias_restantes
 from app.extensions import db
 from app.models.notification import (
+    TIPO_ASIGNACION,
     TIPO_CAMBIO_ESTADO,
     TIPO_CAMBIO_FECHA,
     TIPO_REASIGNACION,
@@ -99,7 +100,7 @@ def create_task(actor, data: dict) -> Tarea:
             },
         )
 
-        _notificar_asignacion(tarea, actor)
+        _notificar_asignacion(tarea, actor, cliente.nombre_completo)
 
         db.session.commit()
     except IntegrityError as exc:
@@ -336,7 +337,10 @@ def update_task(actor, tarea_id: int, data: dict) -> Tarea:
         )
 
         if "asignado_id" in cambios:
-            _notificar_reasignacion(tarea, anterior_asignado_id, actor)
+            detalle = task_repository.details_for([tarea.id]).get(tarea.id, {})
+            _notificar_reasignacion(
+                tarea, anterior_asignado_id, actor, detalle.get("cliente_nombre")
+            )
         elif "fecha_limite" in cambios:
             _notificar_cambio_fecha(tarea, anterior_fecha_limite, actor)
 
@@ -418,15 +422,21 @@ def _assert_can_edit(actor, tarea: Tarea) -> None:
     raise ForbiddenError()
 
 
-def _notificar_reasignacion(tarea: Tarea, anterior_id: int, actor) -> None:
-    """HU_32: avisa al contador nuevo y al anterior (nunca al propio actor)."""
+def _notificar_reasignacion(
+    tarea: Tarea, anterior_id: int, actor, cliente_nombre: str | None = None
+) -> None:
+    """HU_32/HU_65: avisa al contador nuevo y al anterior (nunca al propio actor).
+
+    El aviso al nuevo asignado incluye cliente, prioridad y fecha límite, como el
+    de una asignación nueva (HU_65).
+    """
     if tarea.asignado_id != actor.id:
         db.session.add(
             Notificacion(
                 usuario_id=tarea.asignado_id,
                 tipo=TIPO_REASIGNACION,
                 titulo="Tarea reasignada a ti",
-                mensaje=f"{tarea.titulo} — vence {tarea.fecha_limite.isoformat()}",
+                mensaje=_mensaje_asignacion(tarea, cliente_nombre),
                 entidad_tipo="TAREA",
                 entidad_id=tarea.id,
             )
@@ -543,11 +553,12 @@ def _assert_can_view(actor, tarea: Tarea) -> None:
     raise ForbiddenError()
 
 
-def _notificar_asignacion(tarea: Tarea, actor) -> None:
+def _notificar_asignacion(tarea: Tarea, actor, cliente_nombre: str | None = None) -> None:
     """HU_65: notificación in-app al contador asignado.
 
-    No se envía si el asignado es el mismo que crea (criterio de HU_65).
-    Por ahora sin correo (decisión D4 del MVP).
+    Incluye cliente, título, prioridad, fecha límite y el enlace a la tarea (que la
+    bandeja arma con `entidad_tipo` y `entidad_id`). No se envía si el asignado es
+    el mismo que crea la tarea. Por ahora sin correo (decisión D4 del MVP).
     """
     if tarea.asignado_id == actor.id:
         return
@@ -555,12 +566,21 @@ def _notificar_asignacion(tarea: Tarea, actor) -> None:
     db.session.add(
         Notificacion(
             usuario_id=tarea.asignado_id,
-            tipo="ASIGNACION",
+            tipo=TIPO_ASIGNACION,
             titulo="Nueva tarea asignada",
-            mensaje=f"{tarea.titulo} — vence {tarea.fecha_limite.isoformat()}",
+            mensaje=_mensaje_asignacion(tarea, cliente_nombre),
             entidad_tipo="TAREA",
             entidad_id=tarea.id,
         )
+    )
+
+
+def _mensaje_asignacion(tarea: Tarea, cliente_nombre: str | None) -> str:
+    """Texto común de asignación y reasignación (HU_65): cliente, prioridad y fecha."""
+    cliente = cliente_nombre or "Cliente"
+    return (
+        f"{tarea.titulo} — {cliente} — prioridad {tarea.prioridad} "
+        f"— vence {tarea.fecha_limite.isoformat()}"
     )
 
 

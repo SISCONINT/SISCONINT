@@ -10,6 +10,7 @@ from app.core.security import hash_password, password_policy_errors
 from app.extensions import db
 from app.models.user import ESTATUS_ACTIVO, ROL_DUENO, Colaborador
 from app.schemas.user_schema import ColaboradorCreateSchema
+from app.services import notification_service
 
 
 def _find_user(correo: str) -> Colaborador | None:
@@ -85,3 +86,18 @@ def register_cli(app):
         if user is None or not user.activo:
             raise click.ClickException("Colaborador no encontrado o inactivo")
         click.echo(create_access_token(identity=str(user.id)))
+
+    @app.cli.command("recordatorios-vencimiento")
+    def recordatorios_vencimiento():
+        """HU_66: crea los recordatorios de las tareas que vencen mañana (08:00)."""
+        resultado = notification_service.notify_upcoming_deadlines()
+        click.echo(
+            f"Recordatorios para el {resultado['fecha_limite']}: "
+            f"{resultado['creadas']} creados, {resultado['omitidas']} ya existían."
+        )
+
+    @app.cli.command("purgar-notificaciones")
+    def purgar_notificaciones():
+        """HU_71: elimina las notificaciones con más de 90 días de antigüedad."""
+        eliminadas = notification_service.purge_expired()
+        click.echo(f"Notificaciones eliminadas: {eliminadas}.")

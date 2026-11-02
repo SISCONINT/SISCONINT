@@ -168,13 +168,19 @@ def _notificar_alta_cliente(cliente: Cliente, actor) -> None:
         )
     ).scalars().all()
 
+    contador = db.session.get(Colaborador, cliente.contador_asignado_id)
+    contador_nombre = contador.nombre_completo if contador else "sin contador asignado"
+
     for u in destinatarios:
         db.session.add(
             Notificacion(
                 usuario_id=u.id,
                 tipo="CLIENTE_NUEVO",
                 titulo="Nuevo cliente registrado",
-                mensaje=f"{cliente.nombre_completo} fue registrado por {actor.nombre_completo}",
+                mensaje=(
+                    f"{cliente.nombre_completo} — contador asignado: {contador_nombre} "
+                    f"(registrado por {actor.nombre_completo})"
+                ),
                 entidad_tipo="CLIENTE",
                 entidad_id=cliente.id,
             )

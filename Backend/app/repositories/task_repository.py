@@ -1,13 +1,14 @@
 """HU_29-33, HU_41-42. Acceso a datos de tareas."""
 from datetime import date, datetime
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import aliased
 
 from app.core.datetime_utils import today_mx
 from app.core.semaforo import (
     SEMAFORO_AMARILLO,
     SEMAFORO_GRIS,
+    SEMAFORO_ROJO,
     SEMAFORO_VERDE,
     primer_dia_verde,
     rango_amarillo,
@@ -483,6 +484,95 @@ def get_contacto_principal_correo(cliente_id: int) -> str | None:
         ContactoCliente.deleted_at.is_(None),
     )
     return db.session.execute(stmt).scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# HU_64: panel de alertas de vencimiento
+# ---------------------------------------------------------------------------
+def alert_counts(
+    *,
+    cliente_id: int | None = None,
+    responsable_id: int | None = None,
+) -> dict[str, int]:
+    """Conteo de tareas en Rojo y Amarillo (HU_64).
+
+    Excluye tareas completadas y eliminadas. Los filtros de cliente y responsable
+    acotan ambos conteos; el filtro de color no participa, porque el panel siempre
+    muestra cuántas tareas hay en cada color.
+    """
+    hoy = today_mx()
+    desde, hasta = rango_amarillo(hoy)
+    stmt = select(
+        func.sum(case((Tarea.fecha_limite <= hoy, 1), else_=0)),
+        func.sum(
+            case(
+                (
+                    (Tarea.fecha_limite >= desde) & (Tarea.fecha_limite <= hasta),
+                    1,
+                ),
+                else_=0,
+            )
+        ),
+    ).where(
+        Tarea.deleted_at.is_(None),
+        Tarea.estado != ESTADO_COMPLETADO,
+        Tarea.fecha_limite <= hasta,
+    )
+
+    if cliente_id is not None:
+        stmt = stmt.where(Tarea.cliente_id == cliente_id)
+
+    if responsable_id is not None:
+        stmt = stmt.where(Tarea.asignado_id == responsable_id)
+
+    rojo, amarillo = db.session.execute(stmt).one()
+    return {
+        SEMAFORO_ROJO: int(rojo or 0),
+        SEMAFORO_AMARILLO: int(amarillo or 0),
+    }
+
+
+def alert_tasks(
+    *,
+    cliente_id: int | None = None,
+    responsable_id: int | None = None,
+    color: str | None = None,
+    page: int,
+    per_page: int,
+):
+    """Página de tareas en Rojo y Amarillo, ordenada por fecha límite (HU_64).
+
+    Como el rojo siempre tiene fecha límite menor o igual a hoy y el amarillo los
+    dos días siguientes, el orden por fecha deja primero el rojo y luego el amarillo.
+    El filtro `color` acota el listado, pero no los conteos.
+    """
+    hoy = today_mx()
+    desde, hasta = rango_amarillo(hoy)
+    stmt = select(Tarea).where(
+        Tarea.deleted_at.is_(None),
+        Tarea.estado != ESTADO_COMPLETADO,
+        Tarea.fecha_limite <= hasta,
+    )
+
+    if cliente_id is not None:
+        stmt = stmt.where(Tarea.cliente_id == cliente_id)
+
+    if responsable_id is not None:
+        stmt = stmt.where(Tarea.asignado_id == responsable_id)
+
+    if color == SEMAFORO_ROJO:
+        stmt = stmt.where(Tarea.fecha_limite <= hoy)
+    elif color == SEMAFORO_AMARILLO:
+        stmt = stmt.where(Tarea.fecha_limite >= desde, Tarea.fecha_limite <= hasta)
+
+    stmt = stmt.order_by(Tarea.fecha_limite, Tarea.hora_limite, Tarea.id)
+    return db.paginate(
+        stmt,
+        page=page,
+        per_page=per_page,
+        max_per_page=per_page,
+        error_out=False,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -31,6 +31,7 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "task:delete": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_33
     "task:board": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),    # HU_41
     "task:move": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_43
+    "task:alerts": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),                 # HU_64
     "time:timer": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),    # HU_49-50
     "time:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_51
     "time:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_52

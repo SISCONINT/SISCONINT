@@ -8,6 +8,7 @@ import { CatalogPage } from "@/features/catalog";
 import { TasksPage } from "@/features/tasks";
 import { KanbanBoardPage } from "@/features/kanban";
 import { TimeEntriesPage } from "@/features/time";
+import { AlertsPage } from "@/features/alerts";
 import { ROLES } from "@/shared/constants/roles";
 import { RequireAuth, GuestOnly } from "@/shared/auth/RequireAuth";
 import { RequireRole } from "@/shared/auth/RequireRole";
@@ -18,7 +19,7 @@ const Placeholder = ({ title }: { title: string }) => (
 );
 
 const ADMIN_ROLES = [ROLES.DUENO, ROLES.ADMINISTRADOR];
-const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes", "/catalogo", "/tareas", "/tablero", "/tiempos"];
+const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes", "/catalogo", "/tareas", "/tablero", "/tiempos", "/alertas"];
 
 export const router = createBrowserRouter([
   {
@@ -88,6 +89,10 @@ export const router = createBrowserRouter([
           {
             path: "tiempos",
             element: <TimeEntriesPage />,
+          },
+          {
+            path: "alertas",
+            element: <AlertsPage />,
           },
           ...NAV_SECTIONS.flatMap((s) =>
             s.items

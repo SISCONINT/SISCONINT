@@ -5,6 +5,7 @@ import { LoginPage, ActivateAccountPage } from "@/features/auth";
 import { CreateUserPage, EditUserPage, UsersListPage } from "@/features/users";
 import { ClientsListPage, CreateClientPage, ClientFilePage } from "@/features/clients";
 import { CatalogPage } from "@/features/catalog";
+import { TasksPage } from "@/features/tasks";
 import { ROLES } from "@/shared/constants/roles";
 import { RequireAuth, GuestOnly } from "@/shared/auth/RequireAuth";
 import { RequireRole } from "@/shared/auth/RequireRole";
@@ -15,7 +16,7 @@ const Placeholder = ({ title }: { title: string }) => (
 );
 
 const ADMIN_ROLES = [ROLES.DUENO, ROLES.ADMINISTRADOR];
-const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes", "/catalogo"];
+const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes", "/catalogo", "/tareas"];
 
 export const router = createBrowserRouter([
   {
@@ -73,6 +74,10 @@ export const router = createBrowserRouter([
           {
             path: "catalogo",
             element: <CatalogPage />,
+          },
+          {
+            path: "tareas",
+            element: <TasksPage />,
           },
           ...NAV_SECTIONS.flatMap((s) =>
             s.items

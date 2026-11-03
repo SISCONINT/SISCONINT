@@ -9,6 +9,7 @@ import { TasksPage } from "@/features/tasks";
 import { KanbanBoardPage } from "@/features/kanban";
 import { TimeEntriesPage } from "@/features/time";
 import { AlertsPage } from "@/features/alerts";
+import { NotificationsPage } from "@/features/notifications";
 import { ROLES } from "@/shared/constants/roles";
 import { RequireAuth, GuestOnly } from "@/shared/auth/RequireAuth";
 import { RequireRole } from "@/shared/auth/RequireRole";
@@ -19,7 +20,7 @@ const Placeholder = ({ title }: { title: string }) => (
 );
 
 const ADMIN_ROLES = [ROLES.DUENO, ROLES.ADMINISTRADOR];
-const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes", "/catalogo", "/tareas", "/tablero", "/tiempos", "/alertas"];
+const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes", "/catalogo", "/tareas", "/tablero", "/tiempos", "/alertas", "/notificaciones"];
 
 export const router = createBrowserRouter([
   {
@@ -93,6 +94,10 @@ export const router = createBrowserRouter([
           {
             path: "alertas",
             element: <AlertsPage />,
+          },
+          {
+            path: "notificaciones",
+            element: <NotificationsPage />,
           },
           ...NAV_SECTIONS.flatMap((s) =>
             s.items

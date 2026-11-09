@@ -1,34 +1,30 @@
-name: Notificar cambios de columna en GitHub Project
+name: Notificar cambios de tareas a Slack
 
 on:
-  projects_v2_item:
-    types: [edited, converted]
+  issues:
+    types: [opened, closed, reopened, labeled]
 
 jobs:
   notify-board-move:
     runs-on: ubuntu-latest
     steps:
-      - name: Ejecutar script de consulta GraphQL y Notificar a Slack
+      - name: Enviar alerta a Slack
         uses: actions/github-script@v6
         with:
           script: |
             const event = context.payload;
+            const actor = event.sender.login;
+            const issueTitle = event.issue.title;
+            const issueUrl = event.issue.html_url;
+            const actionType = event.action;
             
-            // Verificamos si el cambio corresponde a un campo personalizado (como Status / Columna)
-            if (event.changes && event.changes.field_value) {
-              const actor = event.sender.login;
-              const itemId = event.projects_v2_item.id;
-              
-              // Aquí puedes estructurar el mensaje dinámico para Slack
-              const slackMessage = `🔄 *${actor}* movió una tarjeta de estado en el tablero de GitHub Projects.`;
+            const slackMessage = `🔄 *${actor}* realizó la acción *${actionType}* en el issue: *${issueTitle}*.\n• Enlace: ${issueUrl}`;
 
-              const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-              await fetch(webhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: slackMessage })
-              });
-            }
+            const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: slackMessage })
+            });
         env:
-          GITHUB_TOKEN: ${{ secrets.PROJECT_PAT }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,22 @@
+name: Notificar cambios de GitHub Project a Slack
+
+on:
+  issues:
+    types: [opened, closed, reopened]
+  # Nota: GitHub Actions nativamente soporta eventos de Projects v2 en ciertos contextos, 
+  # o puedes usar un script de Node.js/Python con la API de GraphQL si prefieres monitorear movimientos de columnas exactas.
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar notificación a Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "📢 *Actualización en GitHub Projects*\n• Evento: `${{ github.event_name }}`\n• Repositorio: `${{ github.repository }}`\n• Enlace: ${{ github.event.issue.html_url }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

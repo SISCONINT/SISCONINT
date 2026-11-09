@@ -1,12 +1,15 @@
 name: Notificar cambios de columna en GitHub Project
 
 on:
-  projects_v2_item:
-    types: [edited, converted]
+  issues:
+    types: [opened, closed, reopened, labeled]
 
 jobs:
   notify-board-move:
     runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      contents: read
     steps:
       - name: Ejecutar script de consulta GraphQL y Notificar a Slack
         uses: actions/github-script@v6

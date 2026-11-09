@@ -5,8 +5,12 @@ from app.api import (
     catalog,
     clients,
     dashboard,
+    minutes,
     notifications,
+    obligations,
+    rates,
     tasks,
+    templates,
     time_entries,
     users,
 )
@@ -20,3 +24,7 @@ api_bp.register_blueprint(catalog.bp)
 api_bp.register_blueprint(tasks.bp)
 api_bp.register_blueprint(time_entries.bp)
 api_bp.register_blueprint(dashboard.bp)
+api_bp.register_blueprint(rates.bp)
+api_bp.register_blueprint(obligations.bp)
+api_bp.register_blueprint(minutes.bp)
+api_bp.register_blueprint(templates.bp)

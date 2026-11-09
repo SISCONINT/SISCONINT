@@ -44,6 +44,34 @@ def add(cliente: Cliente) -> Cliente:
     return cliente
 
 
+def get_by_id(cliente_id: int) -> Cliente | None:
+    stmt = select(Cliente).where(Cliente.id == cliente_id, Cliente.deleted_at.is_(None))
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def tiene_acceso(scope_contador_id: int, cliente_id: int) -> bool:
+    """RG-12: el Contador solo accede a los clientes asignados a él o con permiso vigente."""
+    hoy = today_mx()
+    stmt = select(Cliente.id).where(
+        Cliente.id == cliente_id,
+        Cliente.deleted_at.is_(None),
+        or_(
+            Cliente.contador_asignado_id == scope_contador_id,
+            select(PermisoAtencionCliente.id)
+            .where(
+                PermisoAtencionCliente.contador_id == scope_contador_id,
+                PermisoAtencionCliente.cliente_id == Cliente.id,
+                PermisoAtencionCliente.estatus == "VIGENTE",
+                PermisoAtencionCliente.deleted_at.is_(None),
+                PermisoAtencionCliente.fecha_inicio <= hoy,
+                PermisoAtencionCliente.fecha_fin >= hoy,
+            )
+            .exists(),
+        ),
+    )
+    return db.session.execute(stmt).scalar_one_or_none() is not None
+
+
 # ---------------------------------------------------------------------------
 # HU_12
 # ---------------------------------------------------------------------------

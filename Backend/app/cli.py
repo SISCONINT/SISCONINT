@@ -101,3 +101,10 @@ def register_cli(app):
         """HU_71: elimina las notificaciones con más de 90 días de antigüedad."""
         eliminadas = notification_service.purge_expired()
         click.echo(f"Notificaciones eliminadas: {eliminadas}.")
+
+    @app.cli.command("init-db")
+    def init_db():
+        """Crea en la base de datos las tablas que todavía no existan (no toca ni borra las que ya hay)."""
+        db.create_all()
+        tablas = sorted(t.name for t in db.metadata.sorted_tables)
+        click.echo(f"Listo. {len(tablas)} tablas registradas en el modelo: " + ", ".join(tablas))

@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from app.core.datetime_utils import today_mx
 from app.models.task import ESTADO_COMPLETADO
 from app.models.user import ROL_ADMINISTRADOR, ROL_DUENO
-from app.repositories import dashboard_repository
+from app.repositories import dashboard_repository, rate_repository
 
 MSG_SIN_INFO = "Sin información para los filtros seleccionados"
 MSG_SIN_TARIFAS = "Sin tarifas configuradas"
@@ -116,7 +116,7 @@ def get_dashboard(actor, filtros: dict) -> dict:
         "tareas_activas": tareas["total"] - tareas[ESTADO_COMPLETADO],
         "tareas_vencidas": tareas["vencidas"],
     }
-    costo = _costo_estimado(actor, total)
+    costo = _costo_estimado(actor, empleados)
     if costo is not None:
         tarjetas["costo_estimado"] = costo
 
@@ -228,19 +228,41 @@ def _variacion(actual: int, anterior: int) -> float | None:
     return round((actual - anterior) * 100 / anterior, 1)
 
 
-def _costo_estimado(actor, total_minutos: int) -> dict | None:
+def _costo_estimado(actor, empleados: list[dict]) -> dict | None:
     """Costo estimado solo para Dueño y Administrador (HU_79).
 
-    Mientras no exista el catálogo de tarifas (HU_57-62), se informa que no está
-    disponible y cuántas horas quedaron sin tarifa.
+    Usa el catálogo de tarifas (HU_57-62): suma horas × tarifa por cada colaborador que
+    ya tiene una tarifa capturada, y reporta aparte las horas que quedaron sin tarifa.
     """
     if actor.rol not in (ROL_DUENO, ROL_ADMINISTRADOR):
         return None
+
+    colaborador_ids = [e["colaborador_id"] for e in empleados]
+    tarifas = rate_repository.tarifas_por_colaborador(colaborador_ids)
+
+    if not tarifas:
+        return {
+            "disponible": False,
+            "monto": None,
+            "horas_sin_tarifa": _horas(sum(e["minutos"] for e in empleados)),
+            "mensaje": MSG_SIN_TARIFAS,
+        }
+
+    monto = 0.0
+    minutos_sin_tarifa = 0
+    for e in empleados:
+        tarifa = tarifas.get(e["colaborador_id"])
+        if tarifa is None:
+            minutos_sin_tarifa += e["minutos"]
+        else:
+            monto += (e["minutos"] / 60.0) * tarifa
+
+    horas_sin_tarifa = _horas(minutos_sin_tarifa)
     return {
-        "disponible": False,
-        "monto": None,
-        "horas_sin_tarifa": _horas(total_minutos),
-        "mensaje": MSG_SIN_TARIFAS,
+        "disponible": True,
+        "monto": round(monto, 2),
+        "horas_sin_tarifa": horas_sin_tarifa,
+        "mensaje": "" if minutos_sin_tarifa == 0 else f"{horas_sin_tarifa} hrs sin tarifa configurada",
     }
 
 

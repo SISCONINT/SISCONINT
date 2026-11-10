@@ -1,30 +1,44 @@
-name: Notificar cambios de tareas a Slack
-
+# .github/workflows/project-to-slack.yml
+name: Project → Slack
 on:
-  issues:
-    types: [opened, closed, reopened, labeled]
+  repository_dispatch:
+    types: [project_item]
 
 jobs:
-  notify-board-move:
+  notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Enviar alerta a Slack
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const event = context.payload;
-            const actor = event.sender.login;
-            const issueTitle = event.issue.title;
-            const issueUrl = event.issue.html_url;
-            const actionType = event.action;
-            
-            const slackMessage = `🔄 *${actor}* realizó la acción *${actionType}* en el issue: *${issueTitle}*.\n• Enlace: ${issueUrl}`;
-
-            const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-            await fetch(webhookUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text: slackMessage })
-            });
+      - name: Armar y enviar mensaje
         env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: |
+          ID=$(jq -r .content_node_id <<<"$PAYLOAD")
+
+          INFO=$(gh api graphql -f id="$ID" -f query='
+            query($id:ID!){ node(id:$id){
+              ... on Issue{ title url }
+              ... on PullRequest{ title url }
+              ... on DraftIssue{ title }
+            }}')
+
+          TITLE=$(jq -r '.data.node.title // "(sin título)"' <<<"$INFO")
+          URL=$(jq -r '.data.node.url // ""' <<<"$INFO")
+          ACTION=$(jq -r .action <<<"$PAYLOAD")
+          ACTOR=$(jq -r .actor <<<"$PAYLOAD")
+
+          DETAIL=$(jq -r '
+            def v: if type=="object" then (.name // .title // .login // tostring)
+                   else (. // "—" | tostring) end;
+            if .changes.field_value then
+              "\(.changes.field_value.field_name): \(.changes.field_value.from | v) → \(.changes.field_value.to | v)"
+            else "" end' <<<"$PAYLOAD")
+
+          TEXT="📌 *${TITLE}* — ${ACTION} por ${ACTOR}"
+          [ -n "$DETAIL" ] && TEXT="$TEXT ($DETAIL)"
+          [ -n "$URL" ] && TEXT="$TEXT <$URL|ver>"
+
+          jq -n --arg text "$TEXT" '{text:$text}' \
+            | curl -s -X POST -H 'Content-type: application/json' \
+                --data @- "$SLACK_WEBHOOK_URL"

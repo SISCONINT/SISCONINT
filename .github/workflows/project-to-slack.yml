@@ -40,5 +40,5 @@ jobs:
           [ -n "$URL" ] && TEXT="$TEXT <$URL|ver>"
 
           jq -n --arg text "$TEXT" '{text:$text}' \
-            | curl -s -X POST -H 'Content-type: application/json' \
+            | curl -sS --fail-with-body -X POST -H 'Content-type: application/json' \
                 --data @- "$SLACK_WEBHOOK_URL"

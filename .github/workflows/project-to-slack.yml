@@ -6,6 +6,7 @@ on:
 
 jobs:
   notify:
+    if: github.event.client_payload.changes.field_value.field_name != 'Assignees'
     runs-on: ubuntu-latest
     steps:
       - name: Armar y enviar mensaje

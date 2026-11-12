@@ -1,19 +1,41 @@
-"""HU_11-12. Lógica de negocio de clientes."""
+"""HU_11-16. Lógica de negocio de clientes."""
 from sqlalchemy.exc import IntegrityError
 
 from app.core import audit
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PER_PAGE
 from app.core.permissions import ROL_CONTADOR
 from app.extensions import db
 from app.models.client import (
     CONTACTO_PAGOS,
     CONTACTO_PRINCIPAL,
+    ESTATUS_BAJA,
     Cliente,
     ClienteRegimen,
     ContactoCliente,
 )
 from app.repositories import client_repository
+
+_EDITABLE_FIELDS = (
+    "nombre_completo",
+    "rfc",
+    "tipo_persona",
+    "razon_social",
+    "forma_pago",
+    "contador_asignado_id",
+    "giro",
+    "telefono",
+    "correo",
+    "codigo_postal",
+    "calle",
+    "no_exterior",
+    "no_interior",
+    "colonia",
+    "ciudad",
+    "estado",
+    "tiene_trabajadores",
+    "tipo_nomina",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +138,143 @@ def create_client(actor, data: dict) -> Cliente:
         db.session.rollback()
         raise ConflictError("No se pudo registrar el cliente") from exc
 
+    return cliente
+
+
+# ---------------------------------------------------------------------------
+# HU_13: consultar expediente
+# ---------------------------------------------------------------------------
+def get_client(actor, cliente_id: int) -> Cliente:
+    """HU_13. Expediente completo. El Contador solo accede a los suyos (RG-12)."""
+    cliente = client_repository.get_by_id(cliente_id)
+    if cliente is None:
+        raise NotFoundError("Cliente no encontrado")
+
+    if actor.rol == ROL_CONTADOR and not client_repository.tiene_acceso(actor.id, cliente_id):
+        raise ForbiddenError()
+
+    return cliente
+
+
+# ---------------------------------------------------------------------------
+# HU_14: editar cliente
+# ---------------------------------------------------------------------------
+def update_client(actor, cliente_id: int, data: dict) -> Cliente:
+    """HU_14. Reemplaza los datos generales, domicilio, régimen y contactos del cliente."""
+    cliente = client_repository.get_by_id(cliente_id)
+    if cliente is None:
+        raise NotFoundError("Cliente no encontrado")
+
+    existente = client_repository.find_by_rfc(data["rfc"])
+    if existente is not None and existente.id != cliente.id:
+        raise ConflictError(
+            f"El RFC ya está registrado y pertenece al cliente: {existente.nombre_completo}",
+            fields={"rfc": ["El RFC ya está registrado"]},
+        )
+
+    contador = client_repository.get_contador_activo(data["contador_asignado_id"])
+    if contador is None:
+        raise ValidationAppError(
+            "El contador asignado no es válido",
+            fields={"contador_asignado_id": ["Debe ser un Contador Activo"]},
+        )
+
+    solicitados = set(data["regimenes"])
+    validos = client_repository.regimenes_existen(list(solicitados))
+    invalidos = solicitados - validos
+    if invalidos:
+        raise ValidationAppError(
+            "Hay regímenes fiscales inválidos",
+            fields={"regimenes": [f"Claves no válidas: {sorted(invalidos)}"]},
+        )
+
+    before = {field: getattr(cliente, field) for field in _EDITABLE_FIELDS}
+
+    for field in _EDITABLE_FIELDS:
+        setattr(cliente, field, data.get(field))
+    cliente.updated_by = actor.id
+
+    changed = {
+        field: {"antes": before[field], "despues": getattr(cliente, field)}
+        for field in _EDITABLE_FIELDS
+        if before[field] != getattr(cliente, field)
+    }
+
+    # Regímenes: se reemplazan por completo.
+    for regimen in list(cliente.regimenes):
+        db.session.delete(regimen)
+    db.session.flush()
+    for clave in solicitados:
+        db.session.add(ClienteRegimen(cliente_id=cliente.id, regimen_clave=clave))
+
+    # Contactos: se actualiza el principal existente (o se crea) y lo mismo para pagos.
+    _upsert_contacto(cliente, CONTACTO_PRINCIPAL, data["contacto_principal"], actor)
+    pagos = data.get("contacto_pagos")
+    if pagos:
+        _upsert_contacto(cliente, CONTACTO_PAGOS, pagos, actor)
+    else:
+        _remove_contacto(cliente, CONTACTO_PAGOS)
+
+    try:
+        if changed:
+            audit.log(actor.id, "cliente", cliente.id, audit.MODIFICAR, changed)
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ConflictError("No se pudo actualizar el cliente") from exc
+
+    return cliente
+
+
+def _upsert_contacto(cliente: Cliente, tipo: str, data: dict, actor) -> None:
+    existente = next((c for c in cliente.contactos if c.tipo == tipo and c.deleted_at is None), None)
+    if existente is None:
+        db.session.add(
+            ContactoCliente(
+                cliente_id=cliente.id,
+                tipo=tipo,
+                nombre_completo=data["nombre_completo"],
+                telefono=data["telefono"],
+                correo=data["correo"],
+                cargo=data["cargo"],
+                created_by=actor.id,
+                updated_by=actor.id,
+            )
+        )
+        return
+
+    existente.nombre_completo = data["nombre_completo"]
+    existente.telefono = data["telefono"]
+    existente.correo = data["correo"]
+    existente.cargo = data["cargo"]
+    existente.updated_by = actor.id
+
+
+def _remove_contacto(cliente: Cliente, tipo: str) -> None:
+    existente = next((c for c in cliente.contactos if c.tipo == tipo and c.deleted_at is None), None)
+    if existente is not None:
+        db.session.delete(existente)
+
+
+# ---------------------------------------------------------------------------
+# HU_15: dar de baja
+# ---------------------------------------------------------------------------
+def deactivate_client(actor, cliente_id: int, motivo: str) -> Cliente:
+    """HU_15. Pasa el cliente a Baja (RG-03: no se elimina). Las tareas y el historial no se tocan."""
+    cliente = client_repository.get_by_id(cliente_id)
+    if cliente is None:
+        raise NotFoundError("Cliente no encontrado")
+
+    before = cliente.estatus
+    cliente.estatus = ESTATUS_BAJA
+    cliente.motivo_baja = motivo
+    cliente.updated_by = actor.id
+
+    audit.log(
+        actor.id, "cliente", cliente.id, audit.ESTATUS,
+        {"estatus": {"antes": before, "despues": ESTATUS_BAJA}, "motivo": motivo},
+    )
+    db.session.commit()
     return cliente
 
 

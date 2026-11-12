@@ -1,4 +1,4 @@
-"""Módulo 3: Clientes. Prefijo /api/v1/clients. HU_11 (POST) y HU_12 (GET)."""
+"""Módulo 3: Clientes. Prefijo /api/v1/clients. HU_11-16."""
 from flask import Blueprint, g, request
 
 from app.core.errors import ValidationAppError
@@ -7,7 +7,11 @@ from app.core.permissions import require_permission
 from app.core.responses import ok
 from app.repositories import client_repository
 from app.schemas.cliente_list_schema import ClienteListItemSchema, ClienteListQuerySchema
-from app.schemas.cliente_schema import ClienteCreateSchema
+from app.schemas.cliente_schema import (
+    ClienteCreateSchema,
+    ClienteDeactivateSchema,
+    ClienteUpdateSchema,
+)
 from app.services import client_service
 
 bp = Blueprint("clients", __name__, url_prefix="/clients")
@@ -57,3 +61,37 @@ def create_client():
     data = ClienteCreateSchema().load(payload)  # errores -> 422
     cliente = client_service.create_client(g.current_user, data)
     return ok(cliente.to_dict(), status=201)
+
+
+@bp.get("/<int:cliente_id>")
+@require_permission("client:view")
+def get_client(cliente_id: int):
+    """HU_13: Consultar el expediente completo de un cliente."""
+    cliente = client_service.get_client(g.current_user, cliente_id)
+    return ok(cliente.to_dict())
+
+
+@bp.put("/<int:cliente_id>")
+@require_permission("client:edit")
+def update_client(cliente_id: int):
+    """HU_14: Editar los datos del cliente (Dueño o Administrador)."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ClienteUpdateSchema().load(payload)  # errores -> 422
+    cliente = client_service.update_client(g.current_user, cliente_id, data)
+    return ok(cliente.to_dict())
+
+
+@bp.post("/<int:cliente_id>/deactivate")
+@require_permission("client:deactivate")
+def deactivate_client(cliente_id: int):
+    """HU_15: Dar de baja al cliente (Dueño o Administrador)."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ClienteDeactivateSchema().load(payload)  # errores -> 422
+    cliente = client_service.deactivate_client(g.current_user, cliente_id, data["motivo"])
+    return ok(cliente.to_dict())

@@ -26,6 +26,9 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "user:deactivate": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                              # HU_09
     "client:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                # HU_11
     "client:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_12
+    "client:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_13
+    "client:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                  # HU_14
+    "client:deactivate": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                             # HU_15
     "catalog:read": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_25
     "task:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),                 # HU_29
     "task:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_30
@@ -44,6 +47,18 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "notification:read-all": ROLES_TODOS,                                                      # HU_73
     "dashboard:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),  # HU_79-84
     "dashboard:personal": frozenset({ROL_CONTADOR}),  # HU_85
+    "rate:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                     # HU_58
+    "rate:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                     # HU_59-60
+    "obligation:list": frozenset(ROLES),                                                        # Obligaciones
+    "obligation:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),
+    "obligation:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),
+    "obligation:deactivate": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),
+    "minute:list": frozenset(ROLES),                                                            # Minutas
+    "minute:create": frozenset(ROLES),
+    "minute:edit": frozenset(ROLES),
+    "minute:delete": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),
+    "template:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                 # Plantillas
+    "template:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),
 }
 
 # El Administrador no edita ni asigna Dueño/Administrador (HU_08).

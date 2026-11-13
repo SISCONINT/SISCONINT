@@ -184,7 +184,7 @@ export function ClientFilePage() {
             icon={ClipboardList}
             title="Obligaciones periódicas del contribuyente"
             description="Las obligaciones se generan a partir de los regímenes fiscales y del esquema de nómina registrado en el expediente."
-            to="/obligaciones"
+            to={`/obligaciones?cliente=${expediente.id}`}
             actionLabel="Ir a obligaciones periódicas"
           />
         )}
@@ -204,7 +204,7 @@ export function ClientFilePage() {
             icon={FileText}
             title="Minutas y acuerdos"
             description="Documenta juntas, acuerdos y decisiones relevantes del expediente fiscal."
-            to="/minutas"
+            to={`/minutas?cliente=${expediente.id}`}
             actionLabel="Ir a minutas"
           />
         )}

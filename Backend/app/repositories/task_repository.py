@@ -610,3 +610,153 @@ def count_open_by_assignee(asignado_id: int) -> int:
 
 def list_open_by_assignee(asignado_id: int) -> list[Tarea]:
     return list(db.session.execute(_open_by_assignee_stmt(asignado_id).order_by(Tarea.id)).scalars())
+
+
+# ---------------------------------------------------------------------------
+# HU_34-37: subtareas
+# ---------------------------------------------------------------------------
+def count_subtareas(tarea_id: int) -> int:
+    """Subtareas no eliminadas de una tarea (máximo 30 por tarea)."""
+    stmt = select(func.count(Subtarea.id)).where(
+        Subtarea.tarea_id == tarea_id, Subtarea.deleted_at.is_(None)
+    )
+    return int(db.session.scalar(stmt) or 0)
+
+
+def get_subtarea(subtarea_id: int, tarea_id: int | None = None) -> Subtarea | None:
+    stmt = select(Subtarea).where(
+        Subtarea.id == subtarea_id, Subtarea.deleted_at.is_(None)
+    )
+    if tarea_id is not None:
+        stmt = stmt.where(Subtarea.tarea_id == tarea_id)
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def add_subtarea(subtarea: Subtarea) -> Subtarea:
+    db.session.add(subtarea)
+    db.session.flush()
+    return subtarea
+
+
+def get_subtarea_detail(subtarea_id: int) -> dict | None:
+    """Subtarea con el nombre de quien la completó."""
+    completada_por = aliased(Colaborador)
+    stmt = (
+        select(Subtarea, completada_por.nombre_completo)
+        .outerjoin(completada_por, completada_por.id == Subtarea.completada_por)
+        .where(Subtarea.id == subtarea_id, Subtarea.deleted_at.is_(None))
+    )
+    row = db.session.execute(stmt).first()
+    if row is None:
+        return None
+    subtarea, completada_por_nombre = row
+    return {
+        "id": subtarea.id,
+        "titulo": subtarea.titulo,
+        "completada": subtarea.completada,
+        "completada_por": subtarea.completada_por,
+        "completada_por_nombre": completada_por_nombre,
+        "completada_en": subtarea.completada_en,
+        "created_at": subtarea.created_at,
+    }
+
+
+# ---------------------------------------------------------------------------
+# HU_38-40: comentarios
+# ---------------------------------------------------------------------------
+def add_comentario(comentario: Comentario) -> Comentario:
+    db.session.add(comentario)
+    db.session.flush()
+    return comentario
+
+
+def get_comentario(comentario_id: int, tarea_id: int | None = None) -> Comentario | None:
+    stmt = select(Comentario).where(
+        Comentario.id == comentario_id, Comentario.deleted_at.is_(None)
+    )
+    if tarea_id is not None:
+        stmt = stmt.where(Comentario.tarea_id == tarea_id)
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def get_comentario_detail(comentario_id: int) -> dict | None:
+    """Comentario con el nombre del autor."""
+    stmt = (
+        select(Comentario, Colaborador.nombre_completo)
+        .outerjoin(Colaborador, Colaborador.id == Comentario.autor_id)
+        .where(Comentario.id == comentario_id, Comentario.deleted_at.is_(None))
+    )
+    row = db.session.execute(stmt).first()
+    if row is None:
+        return None
+    comentario, autor_nombre = row
+    return {
+        "id": comentario.id,
+        "autor_id": comentario.autor_id,
+        "autor_nombre": autor_nombre,
+        "texto": comentario.texto,
+        "editado": comentario.editado,
+        "created_at": comentario.created_at,
+        "updated_at": comentario.updated_at,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Selectores de tareas (temporizador, minutas y formularios)
+# ---------------------------------------------------------------------------
+def list_options(
+    *,
+    scope_usuario_id: int | None,
+    solo_asignadas: bool = False,
+    incluir_completadas: bool = False,
+    limit: int = 500,
+) -> list[dict]:
+    """Tareas visibles para un selector, con cliente y responsable resueltos."""
+    asignado = aliased(Colaborador)
+    stmt = (
+        select(
+            Tarea.id,
+            Tarea.titulo,
+            Tarea.cliente_id,
+            Cliente.nombre_completo,
+            Tarea.asignado_id,
+            asignado.nombre_completo,
+            Tarea.estado,
+            Tarea.fecha_limite,
+        )
+        .select_from(Tarea)
+        .join(Cliente, Cliente.id == Tarea.cliente_id)
+        .join(asignado, asignado.id == Tarea.asignado_id)
+        .where(Tarea.deleted_at.is_(None))
+    )
+    if not incluir_completadas:
+        stmt = stmt.where(Tarea.estado != ESTADO_COMPLETADO)
+    if solo_asignadas:
+        stmt = stmt.where(Tarea.asignado_id == scope_usuario_id)
+    elif scope_usuario_id is not None:
+        stmt = stmt.where(
+            or_(Tarea.asignado_id == scope_usuario_id, Tarea.creador_id == scope_usuario_id)
+        )
+    stmt = stmt.order_by(Tarea.fecha_limite, Tarea.hora_limite, Tarea.id).limit(limit)
+    return [
+        {
+            "id": tarea_id,
+            "titulo": titulo,
+            "cliente_id": cliente_id,
+            "cliente_nombre": cliente_nombre,
+            "asignado_id": asignado_id,
+            "asignado_nombre": asignado_nombre,
+            "estado": estado,
+            "fecha_limite": fecha_limite,
+        }
+        for (
+            tarea_id,
+            titulo,
+            cliente_id,
+            cliente_nombre,
+            asignado_id,
+            asignado_nombre,
+            estado,
+            fecha_limite,
+        ) in db.session.execute(stmt).all()
+    ]

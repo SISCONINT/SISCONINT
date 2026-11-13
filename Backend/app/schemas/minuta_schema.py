@@ -1,5 +1,7 @@
-"""Schemas de minutas y acuerdos."""
+"""Schemas de minutas y acuerdos (documentos cargados)."""
 from marshmallow import EXCLUDE, Schema, fields, pre_load, validate
+
+from app.models.minute import TIPOS
 
 
 def _strip(data: dict) -> dict:
@@ -34,16 +36,19 @@ class MinutaCreateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
+    tipo = fields.String(required=True, validate=validate.OneOf(TIPOS))
+    titulo = fields.String(required=True, validate=validate.Length(min=3, max=100))
+    fecha_reunion = fields.Date(required=True)
     cliente_id = fields.Integer(allow_none=True, validate=validate.Range(min=1))
     tarea_id = fields.Integer(allow_none=True, validate=validate.Range(min=1))
-    titulo = fields.String(required=True, validate=validate.Length(min=1, max=150))
-    fecha = fields.Date(required=True)
-    participantes = fields.String(allow_none=True, validate=validate.Length(max=300))
-    acuerdos = fields.String(required=True, validate=validate.Length(min=1, max=4000))
+    observaciones = fields.String(allow_none=True, validate=validate.Length(max=2000))
 
     @pre_load
     def _norm(self, data, **_):
-        return _strip(data)
+        data = _strip(data)
+        if isinstance(data.get("tipo"), str):
+            data["tipo"] = data["tipo"].upper()
+        return data
 
 
 class MinutaUpdateSchema(MinutaCreateSchema):

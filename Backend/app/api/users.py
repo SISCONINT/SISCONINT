@@ -5,6 +5,7 @@ from app.core.errors import ValidationAppError
 from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
+from app.models.user import ROLES
 from app.schemas.user_list_schema import ColaboradorListItemSchema, ColaboradorListQuerySchema
 from app.schemas.user_schema import (
     ColaboradorCreateSchema,
@@ -46,6 +47,21 @@ def create_user():
     body = ColaboradorSchema().dump(user)
     body["correo_activacion_enviado"] = email_sent
     return ok(body, status=201)
+
+
+@bp.get("/options")
+@require_permission("user:options")
+def list_user_options():
+    """Colaboradores activos para selectores de responsable.
+
+    Parámetro opcional `rol` para limitar a Coordinadores o Contadores.
+    """
+    rol = request.args.get("rol")
+    if rol:
+        rol = rol.strip().upper()
+        if rol not in ROLES:
+            raise ValidationAppError("El rol no es válido", fields={"rol": ["Valor no válido"]})
+    return ok(user_service.list_user_options(rol))
 
 
 @bp.get("/<int:user_id>")

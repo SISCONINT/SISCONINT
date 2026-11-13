@@ -63,6 +63,28 @@ def create_client():
     return ok(cliente.to_dict(), status=201)
 
 
+@bp.get("/options")
+@require_permission("client:list")
+def list_client_options():
+    """Clientes para selectores (tareas, obligaciones y minutas).
+
+    Por defecto excluye a los clientes en Baja. El Contador solo recibe los
+    clientes asignados a él o con permiso de atención vigente.
+    """
+    incluir_baja = str(request.args.get("incluir_baja", "")).lower() in (
+        "1",
+        "true",
+        "si",
+        "sí",
+        "yes",
+    )
+    return ok(
+        client_service.list_client_options(
+            g.current_user, {"incluir_baja": incluir_baja}
+        )
+    )
+
+
 @bp.get("/<int:cliente_id>")
 @require_permission("client:view")
 def get_client(cliente_id: int):

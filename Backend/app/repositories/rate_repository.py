@@ -1,46 +1,82 @@
-"""HU_57-62. Acceso a datos de tarifas por colaborador."""
+"""HU_57-62. Acceso a datos de tarifas por nivel de escalafón."""
+from datetime import date
+
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models.rate import Tarifa
-from app.models.user import ESTATUS_ACTIVO, Colaborador
+from app.models.rate import TarifaNivel
+from app.models.user import Colaborador
 
 
-def list_with_colaboradores() -> list[dict]:
-    """Un renglón por colaborador Activo, con su tarifa si ya tiene una asignada."""
+def get_effective(nivel: str, fecha: date) -> TarifaNivel | None:
     stmt = (
-        select(Colaborador, Tarifa)
-        .outerjoin(
-            Tarifa, (Tarifa.colaborador_id == Colaborador.id) & (Tarifa.deleted_at.is_(None))
+        select(TarifaNivel)
+        .where(
+            TarifaNivel.nivel == nivel,
+            TarifaNivel.deleted_at.is_(None),
+            TarifaNivel.vigencia_inicio <= fecha,
+            (TarifaNivel.vigencia_fin.is_(None)) | (TarifaNivel.vigencia_fin >= fecha),
         )
-        .where(Colaborador.estatus == ESTATUS_ACTIVO, Colaborador.deleted_at.is_(None))
-        .order_by(Colaborador.nombre_completo)
+        .order_by(TarifaNivel.vigencia_inicio.desc(), TarifaNivel.id.desc())
+        .limit(1)
     )
-    rows = db.session.execute(stmt).all()
-    return [
-        {
-            "id": tarifa.id if tarifa else None,
-            "colaborador_id": colaborador.id,
-            "colaborador_nombre": colaborador.nombre_completo,
-            "rol": colaborador.rol,
-            "monto_hora": float(tarifa.monto_hora) if tarifa else None,
-            "moneda": tarifa.moneda if tarifa else None,
-            "updated_at": tarifa.updated_at if tarifa else None,
-        }
-        for colaborador, tarifa in rows
-    ]
-
-
-def get_by_colaborador(colaborador_id: int) -> Tarifa | None:
-    stmt = select(Tarifa).where(Tarifa.colaborador_id == colaborador_id, Tarifa.deleted_at.is_(None))
     return db.session.execute(stmt).scalar_one_or_none()
 
 
-def tarifas_por_colaborador(colaborador_ids: list[int]) -> dict[int, float]:
-    """Mapa {colaborador_id: monto_hora} para el costo estimado del dashboard."""
+def get_by_nivel_inicio(nivel: str, inicio: date) -> TarifaNivel | None:
+    stmt = select(TarifaNivel).where(
+        TarifaNivel.nivel == nivel,
+        TarifaNivel.deleted_at.is_(None),
+        TarifaNivel.vigencia_inicio == inicio,
+    )
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def find_overlap(
+    nivel: str,
+    inicio: date,
+    fin: date | None,
+    exclude_id: int | None = None,
+) -> TarifaNivel | None:
+    """Busca una tarifa del mismo nivel que se traslape con [inicio, fin]."""
+    stmt = select(TarifaNivel).where(
+        TarifaNivel.nivel == nivel,
+        TarifaNivel.deleted_at.is_(None),
+        TarifaNivel.vigencia_inicio <= (fin or date.max),
+        (TarifaNivel.vigencia_fin.is_(None)) | (TarifaNivel.vigencia_fin >= inicio),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(TarifaNivel.id != exclude_id)
+    return db.session.execute(stmt.limit(1)).scalar_one_or_none()
+
+
+def rates_by_level(fecha: date) -> dict[str, float]:
+    stmt = (
+        select(TarifaNivel.nivel, TarifaNivel.monto_hora_mxn)
+        .where(
+            TarifaNivel.deleted_at.is_(None),
+            TarifaNivel.vigencia_inicio <= fecha,
+            (TarifaNivel.vigencia_fin.is_(None)) | (TarifaNivel.vigencia_fin >= fecha),
+        )
+        .order_by(TarifaNivel.nivel, TarifaNivel.vigencia_inicio.desc(), TarifaNivel.id.desc())
+    )
+    result: dict[str, float] = {}
+    for nivel, monto in db.session.execute(stmt).all():
+        result.setdefault(nivel, float(monto))
+    return result
+
+
+def tarifas_por_colaborador(colaborador_ids: list[int], fecha: date) -> dict[int, float]:
+    """Mapa {colaborador_id: monto_hora_mxn vigente en la fecha} para el costo estimado."""
     if not colaborador_ids:
         return {}
-    stmt = select(Tarifa.colaborador_id, Tarifa.monto_hora).where(
-        Tarifa.colaborador_id.in_(colaborador_ids), Tarifa.deleted_at.is_(None)
+    rates = rates_by_level(fecha)
+    stmt = select(Colaborador.id, Colaborador.grado_escalafon).where(
+        Colaborador.id.in_(colaborador_ids),
+        Colaborador.deleted_at.is_(None),
     )
-    return {cid: float(monto) for cid, monto in db.session.execute(stmt).all()}
+    return {
+        colaborador_id: rates[nivel]
+        for colaborador_id, nivel in db.session.execute(stmt).all()
+        if nivel in rates
+    }

@@ -1,7 +1,9 @@
 """Schemas de obligaciones periódicas."""
-from marshmallow import EXCLUDE, Schema, fields, pre_load, validate
+from marshmallow import EXCLUDE, Schema, fields, pre_load, validate, validates_schema
+from marshmallow import ValidationError as MarshmallowValidationError
 
-from app.models.obligation import PERIODICIDADES
+from app.models.obligation import PERIODICIDADES, PERIODICIDAD_SEMANAL
+from app.models.task import PRIORIDADES
 
 
 def _strip(data: dict) -> dict:
@@ -36,19 +38,31 @@ class ObligacionCreateSchema(Schema):
         unknown = EXCLUDE
 
     cliente_id = fields.Integer(required=True, validate=validate.Range(min=1))
-    categoria_id = fields.Integer(allow_none=True, validate=validate.Range(min=1))
-    nombre = fields.String(required=True, validate=validate.Length(min=1, max=150))
+    categoria_id = fields.Integer(required=True, validate=validate.Range(min=1))
+    responsable_id = fields.Integer(required=True, validate=validate.Range(min=1))
     periodicidad = fields.String(required=True, validate=validate.OneOf(PERIODICIDADES))
-    dia_limite = fields.Integer(required=True, validate=validate.Range(min=1, max=31))
-    notas = fields.String(allow_none=True, validate=validate.Length(max=300))
+    dia_vencimiento = fields.Integer(required=True, validate=validate.Range(min=1, max=31))
+    fecha_inicio = fields.Date(required=True)
+    prioridad = fields.String(required=True, validate=validate.OneOf(PRIORIDADES))
 
     @pre_load
     def _norm(self, data, **_):
         data = _strip(data)
-        if isinstance(data.get("periodicidad"), str):
-            data["periodicidad"] = data["periodicidad"].upper()
+        for field in ("periodicidad", "prioridad"):
+            if isinstance(data.get(field), str):
+                data[field] = data[field].upper()
         return data
+
+    @validates_schema
+    def _dias_por_periodicidad(self, data, **_):
+        if data.get("periodicidad") == PERIODICIDAD_SEMANAL:
+            dia = data.get("dia_vencimiento")
+            if dia is not None and not 1 <= dia <= 7:
+                raise MarshmallowValidationError(
+                    "Para periodicidad semanal el día debe estar entre 1 y 7",
+                    field_name="dia_vencimiento",
+                )
 
 
 class ObligacionUpdateSchema(ObligacionCreateSchema):
-    activa = fields.Boolean(load_default=True)
+    activa = fields.Boolean(load_default=None, allow_none=True)

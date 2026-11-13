@@ -30,6 +30,7 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "client:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                  # HU_14
     "client:deactivate": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                             # HU_15
     "catalog:read": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_25
+    "catalog:manage": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                # HU_26-28
     "task:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),                 # HU_29
     "task:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_30
     "task:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_31
@@ -37,6 +38,8 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "task:delete": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_33
     "task:board": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),    # HU_41
     "task:move": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),     # HU_43
+    "task:subtask": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_34-37
+    "task:comment": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),  # HU_38-40
     "task:alerts": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),                 # HU_64
     "time:timer": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),    # HU_49-50
     "time:create": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR, ROL_CONTADOR}),   # HU_51
@@ -47,6 +50,9 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "notification:read-all": ROLES_TODOS,                                                      # HU_73
     "dashboard:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),  # HU_79-84
     "dashboard:personal": frozenset({ROL_CONTADOR}),  # HU_85
+    "report:view": frozenset({ROL_DUENO, ROL_ADMINISTRADOR, ROL_COORDINADOR}),      # Reportes ejecutivos
+    "calendar:view": frozenset(ROLES),                                              # Calendario
+    "user:options": frozenset(ROLES),                                               # Selectores de asignación
     "rate:list": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                     # HU_58
     "rate:edit": frozenset({ROL_DUENO, ROL_ADMINISTRADOR}),                                     # HU_59-60
     "obligation:list": frozenset(ROLES),                                                        # Obligaciones

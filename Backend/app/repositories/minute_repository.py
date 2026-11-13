@@ -11,7 +11,7 @@ def search(*, cliente_id: int | None, tarea_id: int | None, page: int):
         stmt = stmt.where(Minuta.cliente_id == cliente_id)
     if tarea_id:
         stmt = stmt.where(Minuta.tarea_id == tarea_id)
-    stmt = stmt.order_by(Minuta.fecha.desc(), Minuta.id.desc())
+    stmt = stmt.order_by(Minuta.fecha_reunion.desc(), Minuta.id.desc())
     return db.paginate(stmt, page=page, per_page=PER_PAGE, max_per_page=PER_PAGE, error_out=False)
 
 

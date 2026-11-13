@@ -1,29 +1,27 @@
-"""HU_57-62. Tarifa por hora de cada colaborador (para el costo estimado del dashboard)."""
+"""HU_57-62. Tarifa por hora según el nivel de escalafón (para el costo estimado)."""
 from app.extensions import db
 from app.models.base import BigId, SoftDeleteMixin, TimestampMixin
 
 
-class Tarifa(TimestampMixin, SoftDeleteMixin, db.Model):
-    """Una tarifa vigente por colaborador. Al cambiarla se sobrescribe (RG-13 deja el rastro)."""
+class TarifaNivel(TimestampMixin, SoftDeleteMixin, db.Model):
+    """Una tarifa vigente por nivel. El histórico se conserva con vigencias."""
 
-    __tablename__ = "tarifa"
+    __tablename__ = "tarifa_nivel"
 
     id = db.Column(BigId, primary_key=True)
-    colaborador_id = db.Column(
-        BigId, db.ForeignKey("colaborador.id"), nullable=False, unique=True, index=True
-    )
-    monto_hora = db.Column(db.Numeric(10, 2), nullable=False)
-    moneda = db.Column(db.String(3), nullable=False, default="MXN")
+    nivel = db.Column(db.String(10), nullable=False, index=True)
+    monto_hora_mxn = db.Column(db.Numeric(10, 2), nullable=False)
+    vigencia_inicio = db.Column(db.Date, nullable=False, index=True)
+    vigencia_fin = db.Column(db.Date)
     created_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
     updated_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
-
-    colaborador = db.relationship("Colaborador", foreign_keys=[colaborador_id])
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
-            "colaborador_id": self.colaborador_id,
-            "monto_hora": float(self.monto_hora),
-            "moneda": self.moneda,
+            "nivel": self.nivel,
+            "monto_hora_mxn": float(self.monto_hora_mxn),
+            "vigencia_inicio": self.vigencia_inicio.isoformat() if self.vigencia_inicio else None,
+            "vigencia_fin": self.vigencia_fin.isoformat() if self.vigencia_fin else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

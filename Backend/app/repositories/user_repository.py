@@ -97,3 +97,20 @@ def list_reassign_targets(exclude_id: int) -> list[Colaborador]:
 def get_reassign_target(target_id: int, exclude_id: int) -> Colaborador | None:
     stmt = _reassign_targets_stmt(exclude_id).where(Colaborador.id == target_id)
     return db.session.execute(stmt).scalar_one_or_none()
+
+
+def list_options(rol: str | None = None) -> list[dict]:
+    """Colaboradores activos para selectores de responsable."""
+    stmt = select(
+        Colaborador.id, Colaborador.nombre_completo, Colaborador.rol
+    ).where(
+        Colaborador.estatus == ESTATUS_ACTIVO,
+        Colaborador.deleted_at.is_(None),
+    )
+    if rol:
+        stmt = stmt.where(Colaborador.rol == rol)
+    stmt = stmt.order_by(func.lower(Colaborador.nombre_completo), Colaborador.id)
+    return [
+        {"id": user_id, "nombre_completo": nombre, "rol": user_rol}
+        for user_id, nombre, user_rol in db.session.execute(stmt).all()
+    ]

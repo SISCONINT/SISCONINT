@@ -222,3 +222,47 @@ def count_reassignable(contador_id: int) -> int:
 
 def list_reassignable(contador_id: int) -> list[Cliente]:
     return list(db.session.execute(_reassignable_stmt(contador_id).order_by(Cliente.id)).scalars())
+
+
+# ---------------------------------------------------------------------------
+# Selectores (tareas, obligaciones y minutas)
+# ---------------------------------------------------------------------------
+def list_options(
+    *, scope_contador_id: int | None = None, incluir_baja: bool = False
+) -> list[dict]:
+    """Clientes visibles para un selector, con el alcance RG-12 del Contador."""
+    stmt = select(
+        Cliente.id, Cliente.nombre_completo, Cliente.rfc, Cliente.estatus
+    ).where(Cliente.deleted_at.is_(None))
+
+    if not incluir_baja:
+        stmt = stmt.where(Cliente.estatus != "BAJA")
+
+    if scope_contador_id is not None:
+        hoy = today_mx()
+        permiso_vigente = (
+            select(PermisoAtencionCliente.id)
+            .where(
+                PermisoAtencionCliente.contador_id == scope_contador_id,
+                PermisoAtencionCliente.cliente_id == Cliente.id,
+                PermisoAtencionCliente.estatus == "VIGENTE",
+                PermisoAtencionCliente.deleted_at.is_(None),
+                PermisoAtencionCliente.fecha_inicio <= hoy,
+                PermisoAtencionCliente.fecha_fin >= hoy,
+            )
+            .exists()
+        )
+        stmt = stmt.where(
+            or_(Cliente.contador_asignado_id == scope_contador_id, permiso_vigente)
+        )
+
+    stmt = stmt.order_by(func.lower(Cliente.nombre_completo), Cliente.id)
+    return [
+        {
+            "id": cliente_id,
+            "nombre_completo": nombre,
+            "rfc": rfc,
+            "estatus": estatus,
+        }
+        for cliente_id, nombre, rfc, estatus in db.session.execute(stmt).all()
+    ]

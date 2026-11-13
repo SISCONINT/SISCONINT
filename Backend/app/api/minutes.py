@@ -1,7 +1,6 @@
 """Minutas y acuerdos. Prefijo /api/v1/minutes."""
 from flask import Blueprint, g, request
 
-from app.core.errors import ValidationAppError
 from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
@@ -9,6 +8,10 @@ from app.schemas.minuta_schema import MinutaCreateSchema, MinutaQuerySchema, Min
 from app.services import minute_service
 
 bp = Blueprint("minutes", __name__, url_prefix="/minutes")
+
+
+def _form_data() -> dict:
+    return request.form.to_dict()
 
 
 @bp.get("")
@@ -22,11 +25,10 @@ def list_minutes():
 @bp.post("")
 @require_permission("minute:create")
 def create_minute():
-    payload = request.get_json(silent=True)
-    if not isinstance(payload, dict):
-        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
-    data = MinutaCreateSchema().load(payload)
-    minuta = minute_service.create_minute(g.current_user, data)
+    data = MinutaCreateSchema().load(_form_data())
+    minuta = minute_service.create_minute(
+        g.current_user, data, request.files.get("archivo")
+    )
     return ok(minuta.to_dict(), status=201)
 
 
@@ -36,14 +38,19 @@ def get_minute(minuta_id: int):
     return ok(minute_service.get_minute(minuta_id).to_dict())
 
 
+@bp.get("/<int:minuta_id>/download")
+@require_permission("minute:list")
+def download_minute(minuta_id: int):
+    return minute_service.download_minute(minuta_id)
+
+
 @bp.put("/<int:minuta_id>")
 @require_permission("minute:edit")
 def update_minute(minuta_id: int):
-    payload = request.get_json(silent=True)
-    if not isinstance(payload, dict):
-        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
-    data = MinutaUpdateSchema().load(payload)
-    minuta = minute_service.update_minute(g.current_user, minuta_id, data)
+    data = MinutaUpdateSchema().load(_form_data())
+    minuta = minute_service.update_minute(
+        g.current_user, minuta_id, data, request.files.get("archivo")
+    )
     return ok(minuta.to_dict())
 
 

@@ -238,7 +238,7 @@ def _costo_estimado(actor, empleados: list[dict]) -> dict | None:
         return None
 
     colaborador_ids = [e["colaborador_id"] for e in empleados]
-    tarifas = rate_repository.tarifas_por_colaborador(colaborador_ids)
+    tarifas = rate_repository.tarifas_por_colaborador(colaborador_ids, today_mx())
 
     if not tarifas:
         return {

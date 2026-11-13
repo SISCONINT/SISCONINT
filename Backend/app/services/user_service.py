@@ -98,6 +98,11 @@ def list_users(filters: dict) -> Pagination:
         per_page=PER_PAGE,
     )
 
+def list_user_options(rol: str | None = None) -> list[dict]:
+    """Colaboradores activos para selectores de responsable."""
+    return user_repository.list_options(rol)
+
+
 def get_user(user_id: int) -> Colaborador:
     """HU_08: ficha para precargar el formulario. 404 si no existe o está eliminado."""
     user = user_repository.get_by_id(user_id)

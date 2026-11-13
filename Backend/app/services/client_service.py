@@ -281,6 +281,15 @@ def deactivate_client(actor, cliente_id: int, motivo: str) -> Cliente:
 # ---------------------------------------------------------------------------
 # HU_12
 # ---------------------------------------------------------------------------
+def list_client_options(actor, filtros: dict | None = None) -> list[dict]:
+    """Clientes para selectores, respetando el alcance del Contador (RG-12)."""
+    scope_contador_id = actor.id if actor.rol == ROL_CONTADOR else None
+    return client_repository.list_options(
+        scope_contador_id=scope_contador_id,
+        incluir_baja=bool((filtros or {}).get("incluir_baja")),
+    )
+
+
 def list_clients(actor, filtros: dict):
     """HU_12. Listado paginado de clientes con alcance por rol (RG-12).
 

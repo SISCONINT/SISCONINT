@@ -121,7 +121,13 @@ def test_admin_cannot_assign_owner_or_admin(client, auth_headers, admin, valid_p
     valid_payload["rol"] = rol
     res = client.post(URL, json=valid_payload, headers=auth_headers(admin))
     assert res.status_code == 403
-    assert db.session.execute(select(Colaborador).where(Colaborador.rol == rol)).first() is None
+    created = db.session.execute(
+        select(Colaborador).where(
+            Colaborador.rol == rol,
+            Colaborador.correo_institucional == valid_payload["correo_institucional"],
+        )
+    ).first()
+    assert created is None
 
 
 # ---------------------------------------------------------------- permisos (RG-02)

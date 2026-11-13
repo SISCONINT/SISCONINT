@@ -29,7 +29,7 @@ export function AuthLayout() {
             <Lock size={12} /> Entorno fiduciario reservado. El acceso no autorizado está tipificado conforme al CFF y Ley General de Protección de Datos Personales.
           </span>
           <span className="font-semibold tracking-wide">
-            ISO/IEC 27001 CERTIFIED · © 2025 TÉLLEZ PONCE & ASOCIADOS
+            ISO/IEC 27001 CERTIFIED · © 2026 TÉLLEZ PONCE & ASOCIADOS
           </span>
         </div>
       </footer>

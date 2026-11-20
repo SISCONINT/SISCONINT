@@ -1,3 +1,9 @@
+# [1.0.0-beta.2](https://github.com/SISCONINT/SISCONINT/compare/v1.0.0-beta.1...v1.0.0-beta.2) (2026-11-20)
+
+### Bug Fixes
+
+* arreglo de los reportes ([8c610ba](https://github.com/SISCONINT/SISCONINT/commit/8c610bac9182908da1e5776e9ffcd5e0c2293d5b))
+
 # 1.0.0-beta.1 (2026-11-18)
 
 ### Features

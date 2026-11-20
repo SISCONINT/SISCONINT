@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, RefreshCw } from "lucide-react";
+import { FileText, Loader2, RefreshCw } from "lucide-react";
 import { PERIODOS } from "@/shared/constants/constants";
 import {
   ErrorState,
@@ -9,7 +9,6 @@ import {
   PageHeader,
 } from "@/shared/components/components";
 import {
-  downloadCsv,
   formatDateTime,
   getErrorMessage,
   monthBounds,
@@ -23,7 +22,7 @@ import {
   ReportTaskStatus,
   ReportTeamBreakdown,
 } from "../components/components";
-import { REPORT_CSV_HEADERS, buildReportCsvRows, reportFileName } from "../schemas/schemas";
+import { exportReportPdf } from "../pdf/reportPdf";
 import type { ReportFilters, ReportOption } from "../types";
 
 export function ReportsPage() {
@@ -33,6 +32,8 @@ export function ReportsPage() {
   const [fechaHasta, setFechaHasta] = useState(initial.hasta);
   const [cliente, setCliente] = useState("");
   const [colaborador, setColaborador] = useState("");
+  const [exportando, setExportando] = useState(false);
+  const [errorExport, setErrorExport] = useState<string | null>(null);
 
   const clientsQuery = useQuery({
     queryKey: ["clients", "options", "reports"],
@@ -65,9 +66,17 @@ export function ReportsPage() {
 
   const data = query.data;
 
-  const exportCsv = () => {
+  const exportPdf = async () => {
     if (!data) return;
-    downloadCsv(reportFileName(data), buildReportCsvRows(data), REPORT_CSV_HEADERS);
+    setExportando(true);
+    setErrorExport(null);
+    try {
+      await exportReportPdf(data);
+    } catch (error) {
+      setErrorExport(getErrorMessage(error));
+    } finally {
+      setExportando(false);
+    }
   };
 
   return (
@@ -78,15 +87,20 @@ export function ReportsPage() {
         description="Resumen del periodo con horas, carga de trabajo, estado de tareas y costo estimado."
         actions={
           <>
-            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-app disabled:cursor-not-allowed disabled:opacity-60" onClick={() => query.refetch()} disabled={query.isFetching}>
+            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-app disabled:cursor-not-allowed disabled:opacity-60" onClick={() => query.refetch()} disabled={query.isFetching || exportando}>
               <RefreshCw size={16} className={query.isFetching ? "animate-spin" : ""} /> Actualizar
             </button>
-            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-lg bg-gold-300 px-4 py-2.5 text-sm font-semibold text-navy-900 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60" onClick={exportCsv} disabled={!data}>
-              <Download size={16} /> Exportar CSV
+            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-lg bg-gold-300 px-4 py-2.5 text-sm font-semibold text-navy-900 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60" onClick={exportPdf} disabled={!data || exportando}>
+              {exportando ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+              {exportando ? "Generando PDF…" : "Exportar PDF"}
             </button>
           </>
         }
       />
+
+      {errorExport && (
+        <Notice tone="danger">No se pudo generar el PDF: {errorExport}</Notice>
+      )}
 
       {data?.sin_informacion && data.mensaje && <Notice tone="info">{data.mensaje}</Notice>}
       {query.isError && <ErrorState message={getErrorMessage(query.error)} />}

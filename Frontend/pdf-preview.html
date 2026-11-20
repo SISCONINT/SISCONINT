@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vista previa del reporte PDF · SISCONINT</title>
+    <link rel="icon" type="image/png" href="/logo-tellez-ponce-mark.png" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --navy: #0b1445;
+        --navy-deep: #060b2e;
+        --gold: #c9a227;
+        --gold-bright: #f5d547;
+        --ink: #111827;
+        --muted: #6b7280;
+        --line: #e2e5ef;
+        --app: #f4f5f8;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        background: var(--app);
+        color: var(--ink);
+      }
+
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 24px;
+        background: linear-gradient(120deg, var(--navy-deep), var(--navy));
+        color: #fff;
+        box-shadow: 0 8px 24px rgb(6 11 46 / 25%);
+      }
+
+      header img {
+        height: 38px;
+        width: auto;
+        filter: drop-shadow(0 2px 6px rgb(0 0 0 / 35%));
+      }
+
+      .titles { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
+
+      .titles strong {
+        font-family: "Montserrat", "Inter", sans-serif;
+        font-size: 15px;
+        letter-spacing: 0.02em;
+      }
+
+      .titles span { font-size: 12px; color: #c9cfe6; }
+
+      .actions { display: flex; gap: 10px; }
+
+      button {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 8px;
+        padding: 9px 16px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: filter 0.15s ease, background 0.15s ease;
+      }
+
+      button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+      .btn-gold {
+        background: var(--gold-bright);
+        color: var(--navy-deep);
+        border-color: var(--gold);
+      }
+
+      .btn-gold:not(:disabled):hover { filter: brightness(0.94); }
+
+      .btn-ghost {
+        background: rgb(255 255 255 / 8%);
+        color: #fff;
+        border-color: rgb(255 255 255 / 25%);
+      }
+
+      .btn-ghost:not(:disabled):hover { background: rgb(255 255 255 / 16%); }
+
+      main { padding: 20px 24px 32px; }
+
+      .frame-shell {
+        max-width: 1100px;
+        margin: 0 auto;
+        height: calc(100vh - 120px);
+        min-height: 640px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 18px 40px rgb(11 20 69 / 12%);
+        position: relative;
+      }
+
+      iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+      .status {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 10px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+        background: #fff;
+      }
+
+      .status.hidden { display: none; }
+
+      .spinner {
+        width: 28px;
+        height: 28px;
+        margin: 0 auto;
+        border-radius: 50%;
+        border: 3px solid var(--line);
+        border-top-color: var(--gold);
+        animation: spin 0.8s linear infinite;
+      }
+
+      .status.error { color: #b42318; }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .hint {
+        max-width: 1100px;
+        margin: 0 auto 14px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      .hint code {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 1px 6px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="/logo-tellez-ponce.png" alt="Téllez Ponce &amp; Asociados" />
+      <div class="titles">
+        <strong>Vista previa · Reporte ejecutivo</strong>
+        <span>Datos de ejemplo con la identidad visual del PDF real</span>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-ghost" id="reload">Regenerar</button>
+        <button type="button" class="btn-gold" id="download" disabled>Descargar PDF</button>
+      </div>
+    </header>
+
+    <main>
+      <p class="hint">
+        Esta página es solo para desarrollo. Genera el PDF con la misma función
+        <code>buildReportPdf()</code> que usa el módulo de reportes; no requiere backend.
+      </p>
+      <div class="frame-shell">
+        <div class="status" id="status">
+          <div class="spinner"></div>
+          <span>Generando PDF…</span>
+        </div>
+        <iframe id="viewer" title="Vista previa del reporte PDF"></iframe>
+      </div>
+    </main>
+
+    <script type="module">
+      import { buildReportPdf } from "/src/features/reports/pdf/reportPdf.ts";
+
+      /** Datos de ejemplo: replican la respuesta de GET /reports/summary. */
+      const sample = {
+        periodo: {
+          tipo: "MES_ACTUAL",
+          etiqueta: "Noviembre 2026",
+          desde: "2026-11-01",
+          hasta: "2026-11-30",
+        },
+        periodo_anterior: { desde: "2026-10-01", hasta: "2026-10-31" },
+        filtros: {
+          cliente_id: null,
+          cliente_nombre: null,
+          colaborador_id: null,
+          colaborador_nombre: null,
+        },
+        tarjetas: {
+          horas_totales: {
+            horas: 486.5,
+            minutos: 29190,
+            variacion_porcentaje: 12.4,
+            horas_periodo_anterior: 432.8,
+          },
+          tareas_activas: 51,
+          tareas_vencidas: 5,
+          costo_estimado: {
+            disponible: true,
+            monto: 342850,
+            horas_sin_tarifa: 0,
+            mensaje: "",
+          },
+        },
+        tiempo_por_empleado: [
+          { colaborador_id: 1, nombre: "María Fernanda López Ruiz", minutos: 7320, horas: 122 },
+          { colaborador_id: 2, nombre: "José Antonio Ramírez Soto", minutos: 6480, horas: 108 },
+          { colaborador_id: 3, nombre: "Ana Sofía Hernández Vega", minutos: 5640, horas: 94 },
+          { colaborador_id: 4, nombre: "Luis Enrique Martínez Cano", minutos: 5100, horas: 85 },
+          { colaborador_id: 5, nombre: "Paola Andrea Torres Gil", minutos: 4650, horas: 77.5 },
+        ],
+        tiempo_por_cliente: [
+          { cliente_id: 1, nombre: "Grupo Industrial del Bajío, S.A. de C.V.", minutos: 9240, horas: 154 },
+          { cliente_id: 2, nombre: "Comercializadora Santa Fe, S. de R.L.", minutos: 7620, horas: 127 },
+          { cliente_id: 3, nombre: "Agropecuaria Valles Unidos, S.P.R.", minutos: 6180, horas: 103 },
+          { cliente_id: 4, nombre: "Servicios Financieros del Centro, S.C.", minutos: 3720, horas: 62 },
+          { cliente_id: 5, nombre: "Distribuidora Querétaro Norte, S.A.", minutos: 2430, horas: 40.5 },
+        ],
+        distribucion_por_categoria: [
+          { categoria_id: 1, nombre: "Auditoría fiscal", minutos: 10200, horas: 170, porcentaje: 35 },
+          { categoria_id: 2, nombre: "Contabilidad mensual", minutos: 8100, horas: 135, porcentaje: 28 },
+          { categoria_id: 3, nombre: "Nómina y seguridad social", minutos: 5700, horas: 95, porcentaje: 19 },
+          { categoria_id: 4, nombre: "Asesoría corporativa", minutos: 3390, horas: 56.5, porcentaje: 12 },
+          { categoria_id: 5, nombre: "Trámites y representación", minutos: 1800, horas: 30, porcentaje: 6 },
+        ],
+        estado_tareas: {
+          POR_HACER: 18,
+          EN_PROGRESO: 24,
+          EN_REVISION: 9,
+          COMPLETADO: 41,
+          vencidas: 5,
+          total: 92,
+        },
+        tareas_completadas: 41,
+        generado_en: "2026-11-19T10:30:00",
+        sin_informacion: false,
+        mensaje: null,
+      };
+
+      const status = document.getElementById("status");
+      const viewer = document.getElementById("viewer");
+      const download = document.getElementById("download");
+      let currentUrl = null;
+
+      async function render() {
+        status.className = "status";
+        status.innerHTML = '<div class="spinner"></div><span>Generando PDF…</span>';
+        download.disabled = true;
+
+        try {
+          const { doc, fileName } = await buildReportPdf(sample);
+          const blobUrl = doc.output("bloburl");
+          if (currentUrl) URL.revokeObjectURL(currentUrl);
+          currentUrl = blobUrl;
+          viewer.src = blobUrl;
+          download.disabled = false;
+          download.onclick = () => doc.save(fileName);
+          status.className = "status hidden";
+        } catch (error) {
+          console.error(error);
+          status.className = "status error";
+          status.textContent = `No se pudo generar el PDF: ${error?.message ?? error}`;
+        }
+      }
+
+      document.getElementById("reload").addEventListener("click", render);
+      render();
+    </script>
+  </body>
+</html>

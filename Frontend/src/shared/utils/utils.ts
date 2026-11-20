@@ -97,35 +97,6 @@ export function getErrorMessage(error: unknown): string {
   return "Ocurrió un error inesperado";
 }
 
-/** Descarga un CSV compatible con Excel (incluye BOM UTF-8). */
-export function downloadCsv(
-  filename: string,
-  rows: Array<Record<string, unknown>>,
-  headers?: Record<string, string>,
-): void {
-  if (rows.length === 0) return;
-
-  const columns = Object.keys(rows[0]);
-  const escape = (value: unknown) => {
-    const text = value === null || value === undefined ? "" : String(value);
-    return `"${text.replace(/"/g, '""')}"`;
-  };
-
-  const head = headers
-    ? columns.map((column) => escape(headers[column] ?? column))
-    : columns.map(escape);
-  const body = rows.map((row) => columns.map((column) => escape(row[column])));
-
-  const csv = `\uFEFF${[head, ...body].map((line) => line.join(",")).join("\r\n")}`;
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 /** Convierte un valor de <input type="date"> a ISO sin zonas horarias. */
 export function inputDateValue(value?: string | null): string {
   return value ? value.slice(0, 10) : "";

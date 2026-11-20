@@ -10,9 +10,12 @@ export function LoginBrandPanel() {
     <section className="relative hidden flex-col justify-between bg-linear-to-b from-navy-900 to-[#0d1750] text-white lg:flex">
       <div className="flex flex-col items-center px-10 pt-10 text-center">
         <div className="rounded-2xl bg-navy-800/60 p-2.5">
-          <div className="grid size-44 place-items-center rounded-xl bg-navy-950 p-4">
-            {/* Coloca el logo en /public/logo-tellez-ponce.png */}
-            <img src="/logo-tellez-ponce.png" alt="Téllez Ponce & Asociados" className="max-h-full" />
+          <div className="w-48 overflow-hidden rounded-xl bg-navy-950 p-3">
+            <img
+              src="/logo-tellez-ponce.png"
+              alt="Téllez Ponce & Asociados"
+              className="h-auto w-full object-contain"
+            />
           </div>
         </div>
 

@@ -3,8 +3,20 @@ import {ApiError, type ApiErrorBody} from "./types";
 import { useAuthStore } from "../../shared/auth/authStore";
 
 
+// La API se consume siempre desde el mismo origen:
+//   - desarrollo: proxy de Vite (vite.config.ts) -> https://sisconint-backend.onrender.com
+//   - producción: proxy de Netlify (netlify.toml) -> https://sisconint-backend.onrender.com/api/:splat
+// El login usa cookies httpOnly + CSRF (SameSite=Lax). Si se usara una URL
+// absoluta (https://...), el navegador no enviaría las cookies ni se podría
+// leer el token CSRF, por eso solo se acepta una ruta relativa.
+const configuredBaseUrl = import.meta.env.VITE_API_URL?.trim();
+const baseURL =
+  configuredBaseUrl && configuredBaseUrl.startsWith("/")
+    ? configuredBaseUrl
+    : "/api/v1";
+
 export const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL ?? "/api/v1",
+    baseURL,
     withCredentials: true, //Envia/recibe las cookies httpOnly del jwt
 });
 

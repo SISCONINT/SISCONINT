@@ -1,13 +1,17 @@
 import { Outlet } from "react-router-dom";
-import { Lock, ShieldCheck } from "lucide-react";
+import { Lock } from "lucide-react";
 
 export function AuthLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-app">
       <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between px-4 py-4 sm:px-6">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-navy-900 text-gold-500">
-            <ShieldCheck size={20} />
+          <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-navy-900 p-1">
+            <img
+              src="/logo-tellez-ponce-mark.png"
+              alt="Téllez Ponce & Asociados"
+              className="h-full w-full object-contain"
+            />
           </span>
           <div className="leading-tight">
             <div className="font-display text-lg font-bold text-ink">SISCONINT</div>
@@ -29,7 +33,7 @@ export function AuthLayout() {
             <Lock size={12} /> Entorno fiduciario reservado. El acceso no autorizado está tipificado conforme al CFF y Ley General de Protección de Datos Personales.
           </span>
           <span className="font-semibold tracking-wide">
-            ISO/IEC 27001 CERTIFIED · © 2025 TÉLLEZ PONCE & ASOCIADOS
+            ISO/IEC 27001 CERTIFIED · © 2026 TÉLLEZ PONCE & ASOCIADOS
           </span>
         </div>
       </footer>

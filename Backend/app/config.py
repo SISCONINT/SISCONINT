@@ -1,4 +1,5 @@
 import os
+import tempfile
 from datetime import timedelta
 
 from dotenv import load_dotenv
@@ -67,6 +68,13 @@ class BaseConfig:
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD") or None
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "no-reply@despacho.com")
 
+    # --- Archivos ------------------------------------------------------
+    UPLOAD_FOLDER = os.getenv(
+        "UPLOAD_FOLDER",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads"),
+    )
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB: límite de las minutas
+
     # --- Reglas de negocio ---------------------------------------------
     ACTIVATION_LINK_HOURS = 48  # HU_05
     LOGIN_MAX_ATTEMPTS = 5  # HU_01: fallos consecutivos que bloquean la cuenta
@@ -91,6 +99,7 @@ class TestingConfig(BaseConfig):
     MAIL_SERVER = "localhost"
     MAIL_SUPPRESS_SEND = True
     FRONTEND_URL = "http://frontend.test"
+    UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "sisconint_test_uploads")
 
 
 class ProductionConfig(BaseConfig):

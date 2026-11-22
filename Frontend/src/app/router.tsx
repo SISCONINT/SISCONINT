@@ -5,22 +5,43 @@ import { LoginPage, ActivateAccountPage } from "@/features/auth";
 import { CreateUserPage, EditUserPage, UsersListPage } from "@/features/users";
 import { ClientsListPage, CreateClientPage, ClientFilePage } from "@/features/clients";
 import { CatalogPage } from "@/features/catalog";
-import { TasksPage } from "@/features/tasks";
+import { TaskDetailPage, TasksPage } from "@/features/tasks";
 import { KanbanBoardPage } from "@/features/kanban";
 import { TimeEntriesPage } from "@/features/time";
 import { AlertsPage } from "@/features/alerts";
 import { NotificationsPage } from "@/features/notifications";
+import { DashboardPage } from "@/features/dashboard/dashboard";
+import { CalendarPage } from "@/features/calendar/calendar";
+import { ObligationsPage } from "@/features/obligations/obligations";
+import { MinutesPage } from "@/features/minutes/minutes";
+import { RatesPage } from "@/features/rates/rates";
+import { ReportsPage } from "@/features/reports";
+import { TemplatesPage } from "@/features/templates";
 import { ROLES } from "@/shared/constants/roles";
+import { PagePlaceholder } from "@/shared/components/components";
 import { RequireAuth, GuestOnly } from "@/shared/auth/RequireAuth";
 import { RequireRole } from "@/shared/auth/RequireRole";
 import { NAV_SECTIONS } from "@/shared/auth/permissions";
 
-const Placeholder = ({ title }: { title: string }) => (
-  <div className="card p-6"><h1 className="text-xl font-semibold">{title}</h1></div>
-);
-
 const ADMIN_ROLES = [ROLES.DUENO, ROLES.ADMINISTRADOR];
-const IMPLEMENTED_PATHS = ["/colaboradores", "/clientes", "/catalogo", "/tareas", "/tablero", "/tiempos", "/alertas", "/notificaciones"];
+const GERENCIA_ROLES = [ROLES.DUENO, ROLES.ADMINISTRADOR, ROLES.COORDINADOR];
+const IMPLEMENTED_PATHS = [
+  "/dashboard",
+  "/colaboradores",
+  "/clientes",
+  "/catalogo",
+  "/tareas",
+  "/tablero",
+  "/tiempos",
+  "/alertas",
+  "/notificaciones",
+  "/calendario",
+  "/obligaciones",
+  "/minutas",
+  "/tarifas",
+  "/reportes",
+  "/plantillas",
+];
 
 export const router = createBrowserRouter([
   {
@@ -36,6 +57,10 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/dashboard" replace /> },
           {
+            path: "dashboard",
+            element: <DashboardPage />,
+          },
+          {
             path: "colaboradores",
             element: (
               <RequireRole roles={ADMIN_ROLES}>
@@ -46,7 +71,7 @@ export const router = createBrowserRouter([
           {
             path: "colaboradores/nuevo",
             element: (
-              <RequireRole roles={[ROLES.DUENO, ROLES.ADMINISTRADOR]}>
+              <RequireRole roles={ADMIN_ROLES}>
                 <CreateUserPage />
               </RequireRole>
             ),
@@ -66,7 +91,7 @@ export const router = createBrowserRouter([
           {
             path: "clientes/nuevo",
             element: (
-              <RequireRole roles={[ROLES.DUENO, ROLES.ADMINISTRADOR]}>
+              <RequireRole roles={ADMIN_ROLES}>
                 <CreateClientPage />
               </RequireRole>
             ),
@@ -84,20 +109,82 @@ export const router = createBrowserRouter([
             element: <TasksPage />,
           },
           {
+            path: "tareas/:id",
+            element: <TaskDetailPage />,
+          },
+          {
             path: "tablero",
             element: <KanbanBoardPage />,
+          },
+          {
+            path: "calendario",
+            element: <CalendarPage />,
+          },
+          {
+            path: "obligaciones",
+            element: <ObligationsPage />,
+          },
+          {
+            path: "minutas",
+            element: <MinutesPage />,
           },
           {
             path: "tiempos",
             element: <TimeEntriesPage />,
           },
           {
+            path: "tarifas",
+            element: (
+              <RequireRole roles={ADMIN_ROLES}>
+                <RatesPage />
+              </RequireRole>
+            ),
+          },
+          {
+            path: "reportes",
+            element: (
+              <RequireRole roles={GERENCIA_ROLES}>
+                <ReportsPage />
+              </RequireRole>
+            ),
+          },
+          {
+            path: "plantillas",
+            element: (
+              <RequireRole roles={ADMIN_ROLES}>
+                <TemplatesPage />
+              </RequireRole>
+            ),
+          },
+          {
             path: "alertas",
-            element: <AlertsPage />,
+            element: (
+              <RequireRole roles={GERENCIA_ROLES}>
+                <AlertsPage />
+              </RequireRole>
+            ),
           },
           {
             path: "notificaciones",
             element: <NotificationsPage />,
+          },
+          {
+            path: "configuracion",
+            element: (
+              <PagePlaceholder
+                title="Configuración"
+                description="La configuración general del despacho estará disponible en una próxima versión."
+              />
+            ),
+          },
+          {
+            path: "soporte",
+            element: (
+              <PagePlaceholder
+                title="Soporte y Mesa de Ayuda"
+                description="Para soporte técnico contacta al administrador del sistema."
+              />
+            ),
           },
           ...NAV_SECTIONS.flatMap((s) =>
             s.items
@@ -106,7 +193,7 @@ export const router = createBrowserRouter([
                 path: i.path.slice(1),
                 element: (
                   <RequireRole roles={i.roles}>
-                    <Placeholder title={i.label} />
+                    <PagePlaceholder title={i.label} />
                   </RequireRole>
                 ),
               })),

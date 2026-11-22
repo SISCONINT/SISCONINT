@@ -2,19 +2,28 @@ import { useEffect, useState } from "react";
 
 /** Cuenta regresiva en segundos. `resetKey` reinicia aunque `seconds` no cambie. */
 export function useCountdown(seconds: number | null, resetKey?: unknown) {
-  const [left, setLeft] = useState(seconds ?? 0);
+  const key = `${String(resetKey ?? "")}:${seconds ?? 0}`;
+  const [state, setState] = useState<{ key: string; left: number }>({
+    key,
+    left: seconds ?? 0,
+  });
+
+  const left = state.key === key ? state.left : seconds ?? 0;
 
   useEffect(() => {
-    setLeft(seconds ?? 0);
     if (!seconds) return;
     const id = setInterval(() => {
-      setLeft((s) => {
-        if (s <= 1) { clearInterval(id); return 0; }
-        return s - 1;
+      setState((prev) => {
+        if (prev.key !== key) return { key, left: Math.max(0, seconds - 1) };
+        if (prev.left <= 1) {
+          clearInterval(id);
+          return { key, left: 0 };
+        }
+        return { key, left: prev.left - 1 };
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [seconds, resetKey]);
+  }, [seconds, key]);
 
   return left;
 }

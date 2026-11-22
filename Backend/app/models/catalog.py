@@ -16,6 +16,8 @@ class CategoriaProyecto(TimestampMixin, SoftDeleteMixin, db.Model):
     nombre = db.Column(db.String(80), nullable=False)
     activa = db.Column(db.Boolean, nullable=False, default=True)
     orden = db.Column(db.Integer, nullable=False, default=0)
+    created_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
+    updated_by = db.Column(BigId, db.ForeignKey("colaborador.id"))
 
     subcategorias = db.relationship(
         "CategoriaProyecto",
@@ -30,6 +32,7 @@ class CategoriaProyecto(TimestampMixin, SoftDeleteMixin, db.Model):
     def to_dict(self, incluir_subcategorias: bool = False) -> dict:
         data = {
             "id": self.id,
+            "padre_id": self.padre_id,
             "nombre": self.nombre,
             "activa": self.activa,
             "orden": self.orden,

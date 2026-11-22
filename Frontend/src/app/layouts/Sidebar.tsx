@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Landmark, Settings, LifeBuoy, LogOut } from "lucide-react";
+import { Settings, LifeBuoy, LogOut } from "lucide-react";
 import clsx from "clsx";
 import { useAuthStore } from "@/shared/auth/authStore";
 import { getNavForRole } from "@//shared/auth/permissions";
@@ -28,8 +28,12 @@ export function Sidebar() {
     >
       {/* Marca */}
       <div className="flex items-center justify-center gap-2.5 px-1.5 py-1 lg:justify-start">
-        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-navy-700 text-gold-500">
-          <Landmark size={20} />
+        <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md bg-navy-800 p-0.5">
+          <img
+            src="/logo-tellez-ponce-mark.png"
+            alt="Téllez Ponce & Asociados"
+            className="h-full w-full object-contain"
+          />
         </span>
         <div className="hidden leading-tight lg:block">
           <div className="text-base font-semibold text-white">Téllez Ponce</div>

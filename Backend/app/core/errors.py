@@ -153,6 +153,12 @@ def register_error_handlers(app):
 
     @app.errorhandler(HTTPException)
     def handle_http_exception(err: HTTPException):
+        if err.code == 413:
+            return error_response(
+                413,
+                "FILE_TOO_LARGE",
+                "El archivo supera el límite de 10 MB",
+            )
         codes = {
             404: "NOT_FOUND",
             405: "METHOD_NOT_ALLOWED",

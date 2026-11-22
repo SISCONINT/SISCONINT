@@ -142,3 +142,20 @@ class ClienteCreateSchema(Schema):
 
         if errors:
             raise ValidationError(errors)
+
+
+class ClienteUpdateSchema(ClienteCreateSchema):
+    """HU_14. Mismos campos y validaciones que el alta (PUT reemplaza el expediente completo)."""
+
+
+class ClienteDeactivateSchema(Schema):
+    """HU_15. Cuerpo de POST /api/v1/clients/<id>/deactivate."""
+
+    class Meta:
+        unknown = EXCLUDE
+
+    motivo = fields.String(required=True, validate=validate.Length(min=1, max=300))
+
+    @pre_load
+    def _norm(self, data, **_):
+        return _strip(data)

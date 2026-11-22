@@ -13,6 +13,7 @@ from app.models.time_entry import RegistroTiempo
 from app.models.user import Colaborador
 from app.services import user_service
 from app.services.user_service import MSG_LAST_OWNER_ROLE, MSG_OWN_ROLE
+from tests.time_helpers import crear_categoria, crear_cliente, crear_registro, crear_tarea
 
 USERS = "/api/v1/users"
 ME = "/api/v1/auth/me"
@@ -321,14 +322,22 @@ def test_grade_change_does_not_close_session(client, auth_headers, owner, accoun
 
 # ---------------------------------------------------------------- grado no reescribe histórico
 def test_grade_change_does_not_rewrite_past_time_entries(client, auth_headers, owner, accountant):
-    past = RegistroTiempo(colaborador_id=accountant.id, grado_escalafon=accountant.grado_escalafon, fecha=date.today())
-    db.session.add(past)
-    db.session.commit()
+    cliente = crear_cliente(accountant)
+    categoria = crear_categoria("Fiscal")
+    tarea = crear_tarea(
+        titulo="Tarea de tiempos",
+        cliente=cliente,
+        categoria=categoria,
+        asignado=accountant,
+        creador=owner,
+        fecha_limite=date.today(),
+    )
+    past = crear_registro(tarea, accountant)
     past_id = past.id
-    old_grade = past.grado_escalafon
+    old_grade = past.nivel_escalafon
 
     res = client.put(_url(accountant.id), json=_ficha(accountant, grado_escalafon="JUNIOR"), headers=auth_headers(owner))
     assert res.status_code == 200
     assert res.get_json()["data"]["grado_escalafon"] == "JUNIOR"
     assert db.session.get(Colaborador, accountant.id).grado_escalafon == "JUNIOR"
-    assert db.session.get(RegistroTiempo, past_id).grado_escalafon == old_grade == "ADMIN"
+    assert db.session.get(RegistroTiempo, past_id).nivel_escalafon == old_grade == "ADMIN"

@@ -5,9 +5,21 @@ from app.core.errors import ValidationAppError
 from app.core.pagination import pagination_meta
 from app.core.permissions import require_permission
 from app.core.responses import ok
+from app.schemas.tarea_accion_schema import (
+    ComentarioCreateSchema,
+    ComentarioUpdateSchema,
+    SubtareaCreateSchema,
+    SubtareaUpdateSchema,
+    TareaOpcionSchema,
+    TareaOptionsQuerySchema,
+)
 from app.schemas.tarea_alerta_schema import TareaAlertaQuerySchema, TareaAlertasSchema
 from app.schemas.tarea_board_schema import TareaBoardQuerySchema, TareaBoardSchema
-from app.schemas.tarea_detail_schema import TareaDetailSchema
+from app.schemas.tarea_detail_schema import (
+    ComentarioDetalleSchema,
+    SubtareaDetalleSchema,
+    TareaDetailSchema,
+)
 from app.schemas.tarea_estado_schema import TareaEstadoSchema
 from app.schemas.tarea_list_schema import TareaListItemSchema, TareaListQuerySchema
 from app.schemas.tarea_schema import TareaCreateSchema, TareaUpdateSchema
@@ -43,6 +55,88 @@ def get_board():
     filtros = TareaBoardQuerySchema().load(request.args.to_dict())  # errores -> 422
     tablero = task_service.get_kanban_board(g.current_user, filtros)
     return ok(TareaBoardSchema().dump(tablero))
+
+
+@bp.get("/options")
+@require_permission("task:view")
+def list_task_options():
+    """Selectores de tareas para temporizador, minutas y formularios.
+
+    Devuelve tareas no eliminadas con cliente y responsable resueltos. Con
+    `mias=true` solo las asignadas al usuario autenticado y con
+    `incluir_completadas=true` también las cerradas.
+    """
+    filtros = TareaOptionsQuerySchema().load(request.args.to_dict())
+    items = task_service.list_task_options(g.current_user, filtros)
+    return ok(TareaOpcionSchema(many=True).dump(items))
+
+
+# ---------------------------------------------------------------------------
+# HU_34-37: subtareas
+# ---------------------------------------------------------------------------
+@bp.post("/<int:tarea_id>/subtasks")
+@require_permission("task:subtask")
+def create_subtask(tarea_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = SubtareaCreateSchema().load(payload)
+    subtarea = task_service.add_subtarea(g.current_user, tarea_id, data)
+    return ok(SubtareaDetalleSchema().dump(subtarea), status=201)
+
+
+@bp.put("/<int:tarea_id>/subtasks/<int:subtarea_id>")
+@require_permission("task:subtask")
+def update_subtask(tarea_id: int, subtarea_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = SubtareaUpdateSchema().load(payload)
+    subtarea = task_service.update_subtarea(g.current_user, tarea_id, subtarea_id, data)
+    return ok(SubtareaDetalleSchema().dump(subtarea))
+
+
+@bp.delete("/<int:tarea_id>/subtasks/<int:subtarea_id>")
+@require_permission("task:subtask")
+def delete_subtask(tarea_id: int, subtarea_id: int):
+    return ok(task_service.delete_subtarea(g.current_user, tarea_id, subtarea_id))
+
+
+# ---------------------------------------------------------------------------
+# HU_38-40: comentarios
+# ---------------------------------------------------------------------------
+@bp.post("/<int:tarea_id>/comments")
+@require_permission("task:comment")
+def create_comment(tarea_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ComentarioCreateSchema().load(payload)
+    comentario = task_service.add_comentario(g.current_user, tarea_id, data)
+    return ok(ComentarioDetalleSchema().dump(comentario), status=201)
+
+
+@bp.put("/<int:tarea_id>/comments/<int:comentario_id>")
+@require_permission("task:comment")
+def update_comment(tarea_id: int, comentario_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValidationAppError("El cuerpo de la petición debe ser un objeto JSON")
+
+    data = ComentarioUpdateSchema().load(payload)
+    comentario = task_service.update_comentario(
+        g.current_user, tarea_id, comentario_id, data
+    )
+    return ok(ComentarioDetalleSchema().dump(comentario))
+
+
+@bp.delete("/<int:tarea_id>/comments/<int:comentario_id>")
+@require_permission("task:comment")
+def delete_comment(tarea_id: int, comentario_id: int):
+    return ok(task_service.delete_comentario(g.current_user, tarea_id, comentario_id))
 
 
 @bp.get("/alerts")

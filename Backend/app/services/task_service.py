@@ -22,9 +22,11 @@ from app.models.task import (
     ESTADO_EN_PROGRESO,
     ESTADO_EN_REVISION,
     ESTADO_POR_HACER,
+    Comentario,
+    Subtarea,
     Tarea,
 )
-from app.models.user import ROL_ADMINISTRADOR, ROL_CONTADOR, ROL_COORDINADOR
+from app.models.user import ROL_ADMINISTRADOR, ROL_CONTADOR, ROL_COORDINADOR, ROL_DUENO
 from app.repositories import task_repository
 from app.services import email_service
 
@@ -145,6 +147,22 @@ def list_tasks(actor, filtros: dict):
         for tarea in page.items
     ]
     return items, page
+
+
+def list_task_options(actor, filtros: dict) -> list[dict]:
+    """Tareas visibles para un selector (temporizador, minutas y formularios).
+
+    El Contador conserva el alcance RG-12 (sus tareas asignadas o creadas). Con
+    `mias=true` cualquier rol se limita a las tareas asignadas a él, que es lo que
+    exigen el temporizador y el registro manual de tiempo.
+    """
+    solo_asignadas = bool(filtros.get("mias"))
+    scope_usuario_id = actor.id if (actor.rol == ROL_CONTADOR or solo_asignadas) else None
+    return task_repository.list_options(
+        scope_usuario_id=scope_usuario_id,
+        solo_asignadas=solo_asignadas,
+        incluir_completadas=bool(filtros.get("incluir_completadas")),
+    )
 
 
 def _list_item(tarea: Tarea, detalle: dict, hoy: date) -> dict:
@@ -897,3 +915,191 @@ def _alert_item(tarea: Tarea, detalle: dict, hoy: date) -> dict:
         "dias_restantes": dias,
         "dias_atraso": max(0, -dias),
     }
+
+
+# ---------------------------------------------------------------------------
+# HU_34-37: subtareas
+# ---------------------------------------------------------------------------
+MAX_SUBTAREAS = 30
+MSG_MAX_SUBTAREAS = "Una tarea no puede tener más de 30 subtareas"
+MSG_SUBTAREA_NO_ENCONTRADA = "Subtarea no encontrada"
+MSG_NO_GUARDAR_SUBTAREA = "No se pudo guardar la subtarea"
+
+
+def add_subtarea(actor, tarea_id: int, data: dict) -> dict:
+    """HU_34: agrega un paso verificable a la tarea (máximo 30)."""
+    tarea = _get_task_visible(actor, tarea_id)
+    if task_repository.count_subtareas(tarea.id) >= MAX_SUBTAREAS:
+        raise ValidationAppError(
+            MSG_MAX_SUBTAREAS, fields={"titulo": [MSG_MAX_SUBTAREAS]}
+        )
+
+    subtarea = Subtarea(
+        tarea_id=tarea.id,
+        titulo=data["titulo"],
+        created_by=actor.id,
+        updated_by=actor.id,
+    )
+    task_repository.add_subtarea(subtarea)
+    audit.log(
+        actor.id,
+        "subtarea",
+        subtarea.id,
+        audit.CREAR,
+        {"tarea_id": tarea.id, "titulo": subtarea.titulo},
+    )
+    db.session.commit()
+    return task_repository.get_subtarea_detail(subtarea.id)
+
+
+def update_subtarea(actor, tarea_id: int, subtarea_id: int, data: dict) -> dict:
+    """HU_35-36: edita el título y marca/desmarca la subtarea como completada."""
+    _get_task_visible(actor, tarea_id)
+    subtarea = task_repository.get_subtarea(subtarea_id, tarea_id)
+    if subtarea is None:
+        raise NotFoundError(MSG_SUBTAREA_NO_ENCONTRADA)
+
+    cambios = {}
+    if "titulo" in data and data["titulo"] != subtarea.titulo:
+        cambios["titulo"] = {"antes": subtarea.titulo, "despues": data["titulo"]}
+        subtarea.titulo = data["titulo"]
+
+    if "completada" in data and data["completada"] != subtarea.completada:
+        subtarea.completada = data["completada"]
+        if subtarea.completada:
+            subtarea.completada_por = actor.id
+            subtarea.completada_en = utcnow()
+        else:
+            subtarea.completada_por = None
+            subtarea.completada_en = None
+        cambios["completada"] = {
+            "antes": not subtarea.completada,
+            "despues": subtarea.completada,
+        }
+
+    if cambios:
+        subtarea.updated_by = actor.id
+        audit.log(
+            actor.id, "subtarea", subtarea.id, audit.MODIFICAR, {"tarea_id": tarea_id, **cambios}
+        )
+        db.session.commit()
+
+    return task_repository.get_subtarea_detail(subtarea.id)
+
+
+def delete_subtarea(actor, tarea_id: int, subtarea_id: int) -> dict:
+    """HU_37: elimina lógicamente una subtarea."""
+    _get_task_visible(actor, tarea_id)
+    subtarea = task_repository.get_subtarea(subtarea_id, tarea_id)
+    if subtarea is None:
+        raise NotFoundError(MSG_SUBTAREA_NO_ENCONTRADA)
+
+    subtarea.deleted_at = utcnow()
+    subtarea.updated_by = actor.id
+    audit.log(
+        actor.id,
+        "subtarea",
+        subtarea.id,
+        audit.ELIMINAR,
+        {"tarea_id": tarea_id, "titulo": subtarea.titulo},
+    )
+    db.session.commit()
+    return {
+        "id": subtarea.id,
+        "tarea_id": tarea_id,
+        "mensaje": "Subtarea eliminada",
+    }
+
+
+# ---------------------------------------------------------------------------
+# HU_38-40: comentarios
+# ---------------------------------------------------------------------------
+MSG_COMENTARIO_NO_ENCONTRADO = "Comentario no encontrado"
+MSG_COMENTARIO_AJENO = "Solo puedes editar tus propios comentarios"
+
+
+def add_comentario(actor, tarea_id: int, data: dict) -> dict:
+    """HU_38: agrega un comentario a la tarea."""
+    tarea = _get_task_visible(actor, tarea_id)
+    comentario = Comentario(
+        tarea_id=tarea.id,
+        autor_id=actor.id,
+        texto=data["texto"],
+        editado=False,
+        created_by=actor.id,
+        updated_by=actor.id,
+    )
+    task_repository.add_comentario(comentario)
+    audit.log(
+        actor.id,
+        "comentario",
+        comentario.id,
+        audit.CREAR,
+        {"tarea_id": tarea.id},
+    )
+    db.session.commit()
+    return task_repository.get_comentario_detail(comentario.id)
+
+
+def update_comentario(actor, tarea_id: int, comentario_id: int, data: dict) -> dict:
+    """HU_39: edita un comentario propio (Dueño y Administrador pueden moderar)."""
+    _get_task_visible(actor, tarea_id)
+    comentario = task_repository.get_comentario(comentario_id, tarea_id)
+    if comentario is None:
+        raise NotFoundError(MSG_COMENTARIO_NO_ENCONTRADO)
+    if comentario.autor_id != actor.id and actor.rol not in (ROL_DUENO, ROL_ADMINISTRADOR):
+        raise ForbiddenError(MSG_COMENTARIO_AJENO)
+
+    if data["texto"] != comentario.texto:
+        comentario.texto = data["texto"]
+        comentario.editado = True
+        comentario.updated_by = actor.id
+        audit.log(
+            actor.id,
+            "comentario",
+            comentario.id,
+            audit.MODIFICAR,
+            {"tarea_id": tarea_id},
+        )
+        db.session.commit()
+
+    return task_repository.get_comentario_detail(comentario.id)
+
+
+def delete_comentario(actor, tarea_id: int, comentario_id: int) -> dict:
+    """HU_40: elimina lógicamente un comentario propio o moderado por gerencia."""
+    _get_task_visible(actor, tarea_id)
+    comentario = task_repository.get_comentario(comentario_id, tarea_id)
+    if comentario is None:
+        raise NotFoundError(MSG_COMENTARIO_NO_ENCONTRADO)
+    if comentario.autor_id != actor.id and actor.rol not in (
+        ROL_DUENO,
+        ROL_ADMINISTRADOR,
+        ROL_COORDINADOR,
+    ):
+        raise ForbiddenError(MSG_COMENTARIO_AJENO)
+
+    comentario.deleted_at = utcnow()
+    comentario.updated_by = actor.id
+    audit.log(
+        actor.id,
+        "comentario",
+        comentario.id,
+        audit.ELIMINAR,
+        {"tarea_id": tarea_id},
+    )
+    db.session.commit()
+    return {
+        "id": comentario.id,
+        "tarea_id": tarea_id,
+        "mensaje": "Comentario eliminado",
+    }
+
+
+def _get_task_visible(actor, tarea_id: int) -> Tarea:
+    """Tarea existente que el actor puede consultar (RG-12)."""
+    tarea = task_repository.get_by_id(tarea_id)
+    if tarea is None:
+        raise NotFoundError("Tarea no encontrada")
+    _assert_can_view(actor, tarea)
+    return tarea

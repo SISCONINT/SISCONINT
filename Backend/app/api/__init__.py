@@ -2,11 +2,17 @@ from flask import Blueprint
 
 from app.api import (
     auth,
+    calendar,
     catalog,
     clients,
     dashboard,
+    minutes,
     notifications,
+    obligations,
+    rates,
+    reports,
     tasks,
+    templates,
     time_entries,
     users,
 )
@@ -20,3 +26,9 @@ api_bp.register_blueprint(catalog.bp)
 api_bp.register_blueprint(tasks.bp)
 api_bp.register_blueprint(time_entries.bp)
 api_bp.register_blueprint(dashboard.bp)
+api_bp.register_blueprint(rates.bp)
+api_bp.register_blueprint(obligations.bp)
+api_bp.register_blueprint(minutes.bp)
+api_bp.register_blueprint(templates.bp)
+api_bp.register_blueprint(calendar.bp)
+api_bp.register_blueprint(reports.bp)

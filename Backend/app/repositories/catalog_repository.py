@@ -61,3 +61,57 @@ def list_categorias(q: str | None = None, solo_activas: bool = False) -> list[Ca
             sub.padre = next((c for c in raices if c.id == sub.padre_id), None)
             # SQLAlchemy llena la relación al asignar el objeto; lo anterior es solo por claridad.
     return raices
+
+
+# ---------------------------------------------------------------------------
+# HU_26-28: administración del catálogo
+# ---------------------------------------------------------------------------
+def get_by_id(categoria_id: int) -> CategoriaProyecto | None:
+    """Categoría o subcategoría no eliminada."""
+    stmt = select(CategoriaProyecto).where(
+        CategoriaProyecto.id == categoria_id,
+        CategoriaProyecto.deleted_at.is_(None),
+    )
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def nombre_existe(
+    nombre: str, padre_id: int | None = None, exclude_id: int | None = None
+) -> bool:
+    """¿Ya hay una entrada no eliminada con ese nombre en el mismo nivel del árbol?
+
+    La comparación no distingue mayúsculas para evitar duplicados como "IVA" e "iva".
+    """
+    stmt = select(CategoriaProyecto.id).where(
+        CategoriaProyecto.deleted_at.is_(None),
+        func.lower(CategoriaProyecto.nombre) == nombre.lower(),
+    )
+    if padre_id is None:
+        stmt = stmt.where(CategoriaProyecto.padre_id.is_(None))
+    else:
+        stmt = stmt.where(CategoriaProyecto.padre_id == padre_id)
+    if exclude_id is not None:
+        stmt = stmt.where(CategoriaProyecto.id != exclude_id)
+    return db.session.execute(stmt).first() is not None
+
+
+def add(categoria: CategoriaProyecto) -> CategoriaProyecto:
+    db.session.add(categoria)
+    db.session.flush()
+    return categoria
+
+
+def deactivate_children(padre_id: int, cuando) -> int:
+    """Desactiva en bloque las subcategorías de una categoría raíz (HU_28)."""
+    from sqlalchemy import update
+
+    result = db.session.execute(
+        update(CategoriaProyecto)
+        .where(
+            CategoriaProyecto.padre_id == padre_id,
+            CategoriaProyecto.deleted_at.is_(None),
+            CategoriaProyecto.activa.is_(True),
+        )
+        .values(activa=False, updated_at=cuando)
+    )
+    return int(result.rowcount or 0)

@@ -2,9 +2,12 @@
   command = "npm run build"
   publish = "dist"
 
+# Proxy de la API: el navegador siempre llama al mismo origen (/api/...),
+# Netlify reenvía a Render. Así las cookies httpOnly + CSRF funcionan igual
+# que con el proxy de Vite en desarrollo.
 [[redirects]]
   from = "/api/*"
-  to = "https://sisconint-backend.onrender.com/api:splat"
+  to = "https://sisconint-backend.onrender.com/api/:splat"
   status = 200
   force = true
 

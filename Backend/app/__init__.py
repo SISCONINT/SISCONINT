@@ -39,6 +39,25 @@ def create_app(config_name: str | None = None, overrides: dict | None = None) ->
 
     @app.get("/health")
     def health():
+        """Liveness: el proceso responde. No toca la base de datos."""
         return {"status": "ok"}
+
+    @app.get("/api/v1/health")
+    def health_ready():
+        """Readiness para Better Stack: verifica también PostgreSQL.
+
+        Vive bajo /api/ para que el monitor pueda llamarlo a través del proxy de
+        Netlify y así validar frontend -> Render -> base de datos de una sola vez.
+        Devuelve 503 si la base de datos no responde, para que el monitor alerte.
+        """
+        from sqlalchemy import text
+
+        try:
+            db.session.execute(text("SELECT 1"))
+        except Exception:  # noqa: BLE001 - cualquier fallo de BD es "no disponible"
+            db.session.rollback()
+            app.logger.exception("Health check: la base de datos no responde")
+            return {"status": "error", "database": "down"}, 503
+        return {"status": "ok", "database": "ok"}
 
     return app

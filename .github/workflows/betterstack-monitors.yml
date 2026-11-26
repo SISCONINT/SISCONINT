@@ -1,0 +1,50 @@
+name: Better Stack monitors
+
+# Mantiene los monitores de Better Stack Uptime iguales a
+# monitoring/betterstack/monitors.json (monitoreo como código).
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Solo mostrar cambios, sin aplicarlos"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "monitoring/betterstack/**"
+      - ".github/workflows/betterstack-monitors.yml"
+  pull_request:
+    paths:
+      - "monitoring/betterstack/**"
+      - ".github/workflows/betterstack-monitors.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: betterstack-monitors
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Sincronizar monitores
+        env:
+          BETTERSTACK_API_TOKEN: ${{ secrets.BETTERSTACK_API_TOKEN }}
+          # Solo hace falta si BETTERSTACK_API_TOKEN es un token global (no de equipo).
+          BETTERSTACK_TEAM_NAME: ${{ vars.BETTERSTACK_TEAM_NAME }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://sisconint-backend.onrender.com' }}
+        run: |
+          # En PR o con dry_run solo se muestran los cambios.
+          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ inputs.dry_run }}" = "true" ]; then
+            python monitoring/betterstack/sync_monitors.py --dry-run
+          else
+            python monitoring/betterstack/sync_monitors.py
+          fi

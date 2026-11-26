@@ -1,0 +1,32 @@
+{
+  "_comentario": "Monitores de Better Stack Uptime para SISCONINT. Se aplican con sync_monitors.py (o el workflow 'Better Stack monitors'). ${VAR} se toma de variables de entorno. El nombre (pronounceable_name) es la llave: si cambias un nombre, se creará un monitor nuevo y el viejo quedará huérfano.",
+  "defaults": {
+    "check_frequency": 180,
+    "request_timeout": 60,
+    "confirmation_period": 60,
+    "recovery_period": 180,
+    "follow_redirects": true,
+    "verify_ssl": true,
+    "email": true,
+    "sms": false,
+    "call": false,
+    "push": false
+  },
+  "monitors": [
+    {
+      "pronounceable_name": "SISCONINT Frontend (Netlify)",
+      "monitor_type": "status",
+      "url": "${FRONTEND_URL}/"
+    },
+    {
+      "pronounceable_name": "SISCONINT Backend API y base de datos (Render)",
+      "monitor_type": "status",
+      "url": "${BACKEND_URL}/api/v1/health"
+    },
+    {
+      "pronounceable_name": "SISCONINT Proxy Netlify hacia API",
+      "monitor_type": "status",
+      "url": "${FRONTEND_URL}/api/v1/health"
+    }
+  ]
+}

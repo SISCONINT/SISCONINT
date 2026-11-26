@@ -902,6 +902,14 @@ docs(manual): documentar vista previa del PDF
 
 > El workflow actual **no ejecuta pruebas**. Ejecuta `pytest`, `lint` y `build` localmente antes de integrar.
 
+### 13.3 Monitoreo de disponibilidad (Better Stack)
+
+`.github/workflows/betterstack-monitors.yml` sincroniza los monitores de Better Stack Uptime con `monitoring/betterstack/monitors.json` (frontend en Netlify, backend + PostgreSQL en Render y el proxy `/api/*` de Netlify). Las alertas llegan a Slack por la integración de Better Stack.
+
+El backend expone dos endpoints sin sesión: `GET /health` (liveness) y `GET /api/v1/health` (verifica la base de datos; 503 si no responde).
+
+Pasos de configuración, variables (`BETTERSTACK_API_TOKEN`, `FRONTEND_URL`) y cómo probar la alerta: **[docs/MONITOREO.md](MONITOREO.md)**.
+
 ---
 
 ## 14. Solución de problemas
